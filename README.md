@@ -1,36 +1,96 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Validly
 
-## Getting Started
+Validly is a Next.js App Router application that turns weekly Reddit discussions into validated SaaS opportunities.
 
-First, run the development server:
+## Workflow
+
+1. Scrape Reddit HTML with the Decodo Scraping API.
+2. Parse post titles plus the top 2–3 comments with Cheerio.
+3. Send structured discussion data to Insforge AI.
+4. Return scored SaaS ideas, market gaps, and user complaints.
+
+## Tech Stack
+
+- Next.js App Router
+- TypeScript
+- Tailwind CSS
+- Cheerio
+- Zod
+- Insforge SDK
+
+## Environment Variables
+
+Copy `.env.example` to `.env.local` and set:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+DECODO_API_KEY=your_decodo_api_key
+INSFORGE_API_KEY=your_insforge_api_key
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Optional overrides:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+INSFORGE_URL=https://api.insforge.dev
+INSFORGE_MODEL=openai/gpt-4o-mini
+INSFORGE_RESULTS_TABLE=validated_saas_ideas
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+`INSFORGE_URL` is optional in this project because the code falls back to `https://api.insforge.dev`, but Insforge projects commonly use a project-specific base URL. Set it explicitly if your workspace uses a dedicated Insforge deployment.
 
-## Learn More
+## Run Locally
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+npm install
+npm run dev
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Open `http://localhost:3000`.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## API
 
-## Deploy on Vercel
+`POST /api/analyze`
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Request body:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```json
+{
+	"subreddit": "saas"
+}
+```
+
+Response shape:
+
+```json
+{
+	"subreddit": "saas",
+	"source": {
+		"subreddit": "saas",
+		"scrapedAt": "2026-04-13T00:00:00.000Z",
+		"posts": [
+			{
+				"title": "...",
+				"comments": ["...", "..."],
+				"permalink": "/r/saas/comments/..."
+			}
+		]
+	},
+	"ideas": [
+		{
+			"idea_name": "...",
+			"problem": "...",
+			"demand_level": "High",
+			"existing_solutions": ["..."],
+			"user_complaints": ["..."],
+			"opportunity": "...",
+			"score": 8,
+			"verdict": "Strong"
+		}
+	]
+}
+```
+
+## Notes
+
+- The Decodo integration is intentionally resilient and tries multiple auth and payload conventions because Decodo account setups can differ.
+- Optional Insforge persistence is disabled unless `INSFORGE_RESULTS_TABLE` is set and the target table already exists.
+- The route validates both request input and AI output before returning data to the UI.

@@ -1,5 +1,5 @@
 {
-  "name": "validly-next-scaffold",
+  "name": "validly",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -9,9 +9,13 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@insforge/sdk": "^1.2.4",
+    "cheerio": "^1.2.0",
+    "jsonrepair": "^3.13.3",
     "next": "16.2.3",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
