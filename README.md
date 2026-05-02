@@ -27,7 +27,7 @@ Validly is a Next.js application that scrapes weekly Reddit discussions from any
 ## 📋 Prerequisites
 
 - Node.js 20+ installed
-- A [Decodo](https://decodo.dev) API key (for Reddit scraping)
+- A [Decodo](https://visit.decodo.com/oNza7b) API key (for Reddit scraping)
 - An [Insforge](https://insforge.dev) API key (for AI analysis)
 
 ## 🛠️ Installation
@@ -75,7 +75,7 @@ Validly is a Next.js application that scrapes weekly Reddit discussions from any
 ## 🔑 Getting API Keys
 
 ### Decodo API Key
-1. Visit [decodo.dev](https://decodo.dev)
+1. Visit [Decodo](https://visit.decodo.com/oNza7b)
 2. Sign up for an account
 3. Navigate to your dashboard
 4. Copy your API key
@@ -199,7 +199,7 @@ This project is open source and available under the [MIT License](LICENSE).
 
 ## 🙏 Acknowledgments
 
-- [Decodo](https://decodo.dev) for powerful web scraping API
+- [Decodo](https://visit.decodo.com/oNza7b) for powerful web scraping API
 - [Insforge](https://insforge.dev) for AI infrastructure
 - [Next.js](https://nextjs.org) team for the amazing framework
 
