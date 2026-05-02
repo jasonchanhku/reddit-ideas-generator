@@ -145,7 +145,13 @@ function parseJsonArray(raw: string): SaasIdea[] {
 }
 
 function compactStructuredData(data: StructuredRedditData): StructuredRedditData {
-  return {
+  console.log(`\n📦 [COMPACT DATA] Preparing data for AI...`);
+  console.log(`   Original posts: ${data.posts.length}`);
+  console.log(`   AI post limit: ${AI_POST_LIMIT}`);
+  
+  const originalCommentCount = data.posts.reduce((sum, p) => sum + p.comments.length, 0);
+  
+  const compacted = {
     subreddit: data.subreddit,
     scrapedAt: data.scrapedAt,
     posts: data.posts.slice(0, AI_POST_LIMIT).map((post) => ({
@@ -155,6 +161,15 @@ function compactStructuredData(data: StructuredRedditData): StructuredRedditData
       comments: post.comments.slice(0, AI_COMMENT_LIMIT),
     })),
   };
+  
+  const compactedCommentCount = compacted.posts.reduce((sum, p) => sum + p.comments.length, 0);
+  
+  console.log(`   Compacted posts: ${compacted.posts.length}`);
+  console.log(`   Original comments: ${originalCommentCount}`);
+  console.log(`   Compacted comments: ${compactedCommentCount}`);
+  console.log(`   Compression ratio: ${((compactedCommentCount / originalCommentCount) * 100).toFixed(1)}%`);
+  
+  return compacted;
 }
 
 async function maybeStoreIdeas(
@@ -162,9 +177,17 @@ async function maybeStoreIdeas(
   subreddit: string,
   ideas: SaasIdea[],
 ): Promise<void> {
-  if (!table || ideas.length === 0) {
+  if (!table) {
+    console.log(`\n💾 [STORAGE] No table configured, skipping persistence`);
     return;
   }
+  
+  if (ideas.length === 0) {
+    console.log(`\n💾 [STORAGE] No ideas to store`);
+    return;
+  }
+  
+  console.log(`\n💾 [STORAGE] Persisting ${ideas.length} ideas to table: ${table}`);
 
   const { insforgeApiKey, insforgeUrl, insforgeTimeoutMs } = getServerEnv();
   const insforge = createClient({
@@ -180,21 +203,48 @@ async function maybeStoreIdeas(
   });
 
   try {
-    await insforge.database.from(table).insert(
-      ideas.map((idea) => ({
-        subreddit,
-        ...idea,
-        analyzed_at: new Date().toISOString(),
-      })),
-    );
-  } catch {
+    const records = ideas.map((idea) => ({
+      subreddit,
+      ...idea,
+      analyzed_at: new Date().toISOString(),
+    }));
+    
+    console.log(`   📊 Record details:`);
+    console.log(`      Subreddit: ${subreddit}`);
+    console.log(`      Ideas: ${ideas.length}`);
+    console.log(`      Timestamp: ${records[0].analyzed_at}`);
+    
+    await insforge.database.from(table).insert(records);
+    
+    console.log(`   ✅ Successfully stored ${ideas.length} ideas`);
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+    console.error(`   ⚠️  Storage failed (non-blocking): ${errorMsg}`);
     // Optional persistence should never block the core workflow.
   }
 }
 
 export async function analyzeWithAI(data: StructuredRedditData): Promise<SaasIdea[]> {
+  console.log(`\n\n${'='.repeat(80)}`);
+  console.log(`🤖 [AI ANALYSIS] Starting idea generation...`);
+  console.log(`   Subreddit: r/${data.subreddit}`);
+  console.log(`   Posts: ${data.posts.length}`);
+  console.log(`   Total Comments: ${data.posts.reduce((sum, p) => sum + p.comments.length, 0)}`);
+  console.log('='.repeat(80));
+  
   const env = getServerEnv();
+  
+  console.log(`\n⚙️  [CONFIG]`);
+  console.log(`   Insforge URL: ${env.insforgeUrl}`);
+  console.log(`   Model: ${env.insforgeModel}`);
+  console.log(`   Timeout: ${env.insforgeTimeoutMs}ms`);
+  console.log(`   Results Table: ${env.insforgeResultsTable || 'Not configured'}`);
+  
   const compactData = compactStructuredData(data);
+  const payloadSize = JSON.stringify(compactData).length;
+  console.log(`   Payload Size: ${payloadSize} bytes (${(payloadSize / 1024).toFixed(2)} KB)`);
+  
+  console.log(`\n🔧 [CLIENT] Creating Insforge client...`);
   const insforge = createClient({
     baseUrl: env.insforgeUrl,
     anonKey: env.insforgeApiKey,
@@ -206,7 +256,16 @@ export async function analyzeWithAI(data: StructuredRedditData): Promise<SaasIde
       "X-API-Key": env.insforgeApiKey,
     },
   });
+  console.log(`   ✅ Client created`);
 
+  console.log(`\n🚀 [API CALL] Sending request to AI...`);
+  console.log(`   Model: ${env.insforgeModel}`);
+  console.log(`   Temperature: 0.2`);
+  console.log(`   Max Tokens: 2200`);
+  console.log(`   System Prompt Length: ${SYSTEM_PROMPT.length} chars`);
+  console.log(`   User Content Length: ${JSON.stringify(compactData).length} chars`);
+  
+  const requestStart = Date.now();
   const response = await insforge.ai.chat.completions.create({
     model: env.insforgeModel,
     temperature: 0.2,
@@ -222,8 +281,48 @@ export async function analyzeWithAI(data: StructuredRedditData): Promise<SaasIde
       },
     ],
   } as never);
+  
+  const requestElapsed = Date.now() - requestStart;
+  console.log(`   ⏱️  AI Response Time: ${requestElapsed}ms (${(requestElapsed / 1000).toFixed(2)}s)`);
 
-  const ideas = parseJsonArray(extractMessageContent(response));
+  console.log(`\n📤 [RESPONSE] Processing AI response...`);
+  const rawContent = extractMessageContent(response);
+  console.log(`   Raw Content Length: ${rawContent.length} chars`);
+  console.log(`   First 100 chars: ${rawContent.slice(0, 100).replace(/\n/g, ' ')}...`);
+  
+  console.log(`\n🔍 [PARSING] Extracting and validating ideas...`);
+  const ideas = parseJsonArray(rawContent);
+  
+  console.log(`\n✨ [IDEAS GENERATED] ${ideas.length} SaaS ideas`);
+  console.log(`${'='.repeat(80)}`);
+  
+  ideas.forEach((idea, index) => {
+    console.log(`\n💡 [IDEA ${index + 1}/${ideas.length}]`);
+    console.log(`   Name: ${idea.idea_name}`);
+    console.log(`   Score: ${idea.score}/10`);
+    console.log(`   Verdict: ${idea.verdict}`);
+    console.log(`   Demand: ${idea.demand_level}`);
+    console.log(`   Problem: ${idea.problem.slice(0, 80)}${idea.problem.length > 80 ? '...' : ''}`);
+    console.log(`   Opportunity: ${idea.opportunity.slice(0, 80)}${idea.opportunity.length > 80 ? '...' : ''}`);
+    console.log(`   Monetization: ${idea.monetization_model}`);
+    console.log(`   Source Threads: ${idea.source_threads.length}`);
+    idea.source_threads.forEach((thread, i) => {
+      console.log(`      ${i + 1}. ${thread.title.slice(0, 60)}${thread.title.length > 60 ? '...' : ''}`);
+    });
+  });
+  
+  console.log(`\n${'='.repeat(80)}`);
+  console.log(`📊 [SUMMARY]`);
+  console.log(`   Total Ideas: ${ideas.length}`);
+  console.log(`   Strong Ideas: ${ideas.filter(i => i.verdict === 'Strong').length}`);
+  console.log(`   Decent Ideas: ${ideas.filter(i => i.verdict === 'Decent').length}`);
+  console.log(`   Weak Ideas: ${ideas.filter(i => i.verdict === 'Weak').length}`);
+  console.log(`   Avg Score: ${(ideas.reduce((sum, i) => sum + i.score, 0) / ideas.length).toFixed(2)}`);
+  console.log(`   High Demand: ${ideas.filter(i => i.demand_level === 'High').length}`);
+  console.log(`   Medium Demand: ${ideas.filter(i => i.demand_level === 'Medium').length}`);
+  console.log(`   Low Demand: ${ideas.filter(i => i.demand_level === 'Low').length}`);
+  console.log(`${'='.repeat(80)}\n`);
+  
   await maybeStoreIdeas(env.insforgeResultsTable, data.subreddit, ideas);
 
   return ideas;

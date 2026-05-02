@@ -31,8 +31,13 @@ function getErrorMessage(error: unknown): string {
 export async function POST(request: Request) {
   try {
     const body = requestSchema.parse(await request.json());
+    console.log(`[API] Starting analysis for r/${body.subreddit}`);
+    
     const source = await structureRedditData(body.subreddit);
+    console.log(`[API] Scraped ${source.posts.length} posts`);
+    
     const ideas = await analyzeWithAI(source);
+    console.log(`[API] Generated ${ideas.length} ideas`);
 
     return NextResponse.json({
       subreddit: source.subreddit,
@@ -40,6 +45,7 @@ export async function POST(request: Request) {
       ideas,
     });
   } catch (error) {
+    console.error("[API] Error occurred:", error);
     const message = getErrorMessage(error);
     const status = error instanceof z.ZodError ? 400 : 500;
 
