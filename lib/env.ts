@@ -11,14 +11,16 @@ const optionalUrl = z
 
 const serverEnvSchema = z.object({
   DECODO_API_KEY: z.string().trim().min(1, "DECODO_API_KEY is required"),
-  INSFORGE_API_KEY: z.string().trim().min(1, "INSFORGE_API_KEY is required"),
-  INSFORGE_URL: optionalUrl,
-  INSFORGE_MODEL: z.string().trim().optional(),
-  INSFORGE_RESULTS_TABLE: z.string().trim().optional(),
+  OPENAI_API_KEY: z.string().trim().min(1, "OPENAI_API_KEY is required"),
+  OPENAI_BASE_URL: optionalUrl,
+  OPENAI_MODEL: z.string().trim().optional(),
+  OPENAI_TIMEOUT_MS: z.coerce.number().int().positive().optional(),
+  MONGODB_URI: z.string().trim().optional(),
+  MONGODB_DB_NAME: z.string().trim().optional(),
+  MONGODB_COLLECTION: z.string().trim().optional(),
   DECODO_PROXY_POOL: z.string().trim().optional(),
   DECODO_HEADLESS_MODE: z.string().trim().optional(),
   DECODO_TIMEOUT_MS: z.coerce.number().int().positive().optional(),
-  INSFORGE_TIMEOUT_MS: z.coerce.number().int().positive().optional(),
 });
 
 export type ServerEnv = {
@@ -26,11 +28,13 @@ export type ServerEnv = {
   decodoProxyPool: string;
   decodoHeadlessMode: string;
   decodoTimeoutMs: number;
-  insforgeApiKey: string;
-  insforgeUrl: string;
-  insforgeModel: string;
-  insforgeTimeoutMs: number;
-  insforgeResultsTable?: string;
+  openaiApiKey: string;
+  openaiBaseUrl: string;
+  openaiModel: string;
+  openaiTimeoutMs: number;
+  mongodbUri?: string;
+  mongodbDbName: string;
+  mongodbCollection: string;
 };
 
 let cachedEnv: ServerEnv | null = null;
@@ -42,14 +46,16 @@ export function getServerEnv(): ServerEnv {
 
   const parsedEnv = serverEnvSchema.parse({
     DECODO_API_KEY: process.env.DECODO_API_KEY,
-    INSFORGE_API_KEY: process.env.INSFORGE_API_KEY,
-    INSFORGE_URL: process.env.INSFORGE_URL,
-    INSFORGE_MODEL: process.env.INSFORGE_MODEL,
-    INSFORGE_RESULTS_TABLE: process.env.INSFORGE_RESULTS_TABLE,
+    OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+    OPENAI_BASE_URL: process.env.OPENAI_BASE_URL,
+    OPENAI_MODEL: process.env.OPENAI_MODEL,
+    OPENAI_TIMEOUT_MS: process.env.OPENAI_TIMEOUT_MS,
+    MONGODB_URI: process.env.MONGODB_URI,
+    MONGODB_DB_NAME: process.env.MONGODB_DB_NAME,
+    MONGODB_COLLECTION: process.env.MONGODB_COLLECTION,
     DECODO_PROXY_POOL: process.env.DECODO_PROXY_POOL,
     DECODO_HEADLESS_MODE: process.env.DECODO_HEADLESS_MODE,
     DECODO_TIMEOUT_MS: process.env.DECODO_TIMEOUT_MS,
-    INSFORGE_TIMEOUT_MS: process.env.INSFORGE_TIMEOUT_MS,
   });
 
   cachedEnv = {
@@ -57,11 +63,13 @@ export function getServerEnv(): ServerEnv {
     decodoProxyPool: parsedEnv.DECODO_PROXY_POOL || "premium",
     decodoHeadlessMode: parsedEnv.DECODO_HEADLESS_MODE || "html",
     decodoTimeoutMs: parsedEnv.DECODO_TIMEOUT_MS ?? 20000,
-    insforgeApiKey: parsedEnv.INSFORGE_API_KEY,
-    insforgeUrl: parsedEnv.INSFORGE_URL ?? "https://api.insforge.dev",
-    insforgeModel: parsedEnv.INSFORGE_MODEL ?? "openai/gpt-4o-mini",
-    insforgeTimeoutMs: parsedEnv.INSFORGE_TIMEOUT_MS ?? 90000,
-    insforgeResultsTable: parsedEnv.INSFORGE_RESULTS_TABLE || undefined,
+    openaiApiKey: parsedEnv.OPENAI_API_KEY,
+    openaiBaseUrl: parsedEnv.OPENAI_BASE_URL ?? "https://api.openai.com/v1",
+    openaiModel: parsedEnv.OPENAI_MODEL ?? "gpt-4o-mini",
+    openaiTimeoutMs: parsedEnv.OPENAI_TIMEOUT_MS ?? 90000,
+    mongodbUri: parsedEnv.MONGODB_URI || undefined,
+    mongodbDbName: parsedEnv.MONGODB_DB_NAME || "validly",
+    mongodbCollection: parsedEnv.MONGODB_COLLECTION || "ideas",
   };
 
   return cachedEnv;

@@ -1,0 +1,5 @@
+- replace decodo with scraper 
+- replace insforge with mongodb and openai compatible
+- monthly generation of ideas
+- able to save / like for further ideas development / research outside of reddit
+- straight to mockup images
