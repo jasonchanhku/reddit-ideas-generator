@@ -1,4 +1,7 @@
+import dns from "dns";
 import { MongoClient, Db } from "mongodb";
+
+dns.setServers(["8.8.8.8", "1.1.1.1"]);
 
 declare global {
   // eslint-disable-next-line no-var
