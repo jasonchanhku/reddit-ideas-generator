@@ -16,6 +16,7 @@ const serverEnvSchema = z.object({
   OPENAI_MODEL: z.string().trim().optional(),
   OPENAI_TIMEOUT_MS: z.coerce.number().int().positive().optional(),
   MONGODB_URI: z.string().trim().optional(),
+  MONGODB_DB_NAME: z.string().trim().optional(),
   MONGODB_COLLECTION: z.string().trim().optional(),
   DECODO_PROXY_POOL: z.string().trim().optional(),
   DECODO_HEADLESS_MODE: z.string().trim().optional(),
@@ -32,6 +33,7 @@ export type ServerEnv = {
   openaiModel: string;
   openaiTimeoutMs: number;
   mongodbUri?: string;
+  mongodbDbName: string;
   mongodbCollection: string;
 };
 
@@ -49,6 +51,7 @@ export function getServerEnv(): ServerEnv {
     OPENAI_MODEL: process.env.OPENAI_MODEL,
     OPENAI_TIMEOUT_MS: process.env.OPENAI_TIMEOUT_MS,
     MONGODB_URI: process.env.MONGODB_URI,
+    MONGODB_DB_NAME: process.env.MONGODB_DB_NAME,
     MONGODB_COLLECTION: process.env.MONGODB_COLLECTION,
     DECODO_PROXY_POOL: process.env.DECODO_PROXY_POOL,
     DECODO_HEADLESS_MODE: process.env.DECODO_HEADLESS_MODE,
@@ -65,6 +68,7 @@ export function getServerEnv(): ServerEnv {
     openaiModel: parsedEnv.OPENAI_MODEL ?? "gpt-4o-mini",
     openaiTimeoutMs: parsedEnv.OPENAI_TIMEOUT_MS ?? 90000,
     mongodbUri: parsedEnv.MONGODB_URI || undefined,
+    mongodbDbName: parsedEnv.MONGODB_DB_NAME || "validly",
     mongodbCollection: parsedEnv.MONGODB_COLLECTION || "ideas",
   };
 

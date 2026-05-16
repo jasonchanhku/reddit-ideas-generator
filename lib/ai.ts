@@ -3,7 +3,7 @@ import { jsonrepair } from "jsonrepair";
 import { z } from "zod";
 
 import { getServerEnv } from "@/lib/env";
-import { getMongoClient } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import type { SaasIdea, StructuredRedditData } from "@/lib/types";
 
 const AI_POST_LIMIT = 8;
@@ -141,6 +141,7 @@ function compactStructuredData(data: StructuredRedditData): StructuredRedditData
 
 async function maybeStoreIdeas(
   mongodbUri: string | undefined,
+  dbName: string,
   collection: string,
   subreddit: string,
   ideas: SaasIdea[],
@@ -155,11 +156,10 @@ async function maybeStoreIdeas(
     return;
   }
 
-  console.log(`\n💾 [STORAGE] Persisting ${ideas.length} ideas to MongoDB collection: ${collection}`);
+  console.log(`\n💾 [STORAGE] Persisting ${ideas.length} ideas to ${dbName}.${collection}`);
 
   try {
-    const client = getMongoClient(mongodbUri);
-    const db = client.db();
+    const db = await getDb(mongodbUri, dbName);
     const analyzed_at = new Date().toISOString();
 
     await db.collection(collection).insertOne({ subreddit, ideas, analyzed_at });
@@ -185,7 +185,7 @@ export async function analyzeWithAI(data: StructuredRedditData): Promise<SaasIde
   console.log(`   OpenAI Base URL: ${env.openaiBaseUrl}`);
   console.log(`   Model: ${env.openaiModel}`);
   console.log(`   Timeout: ${env.openaiTimeoutMs}ms`);
-  console.log(`   MongoDB: ${env.mongodbUri ? `enabled (collection: ${env.mongodbCollection})` : "disabled"}`);
+  console.log(`   MongoDB: ${env.mongodbUri ? `enabled (${env.mongodbDbName}.${env.mongodbCollection})` : "disabled"}`);
 
   const compactData = compactStructuredData(data);
   const payloadSize = JSON.stringify(compactData).length;
@@ -258,7 +258,7 @@ export async function analyzeWithAI(data: StructuredRedditData): Promise<SaasIde
   console.log(`   Low Demand: ${ideas.filter((i) => i.demand_level === "Low").length}`);
   console.log(`${"=".repeat(80)}\n`);
 
-  await maybeStoreIdeas(env.mongodbUri, env.mongodbCollection, data.subreddit, ideas);
+  await maybeStoreIdeas(env.mongodbUri, env.mongodbDbName, env.mongodbCollection, data.subreddit, ideas);
 
   return ideas;
 }

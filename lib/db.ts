@@ -1,13 +1,19 @@
-import { MongoClient } from "mongodb";
+import { MongoClient, Db } from "mongodb";
 
 declare global {
   // eslint-disable-next-line no-var
-  var _mongoClient: MongoClient | undefined;
+  var _mongoClientPromise: Promise<MongoClient> | undefined;
 }
 
-export function getMongoClient(uri: string): MongoClient {
-  if (!global._mongoClient) {
-    global._mongoClient = new MongoClient(uri);
+function getClientPromise(uri: string): Promise<MongoClient> {
+  if (!global._mongoClientPromise) {
+    const client = new MongoClient(uri);
+    global._mongoClientPromise = client.connect();
   }
-  return global._mongoClient;
+  return global._mongoClientPromise;
+}
+
+export async function getDb(uri: string, dbName: string): Promise<Db> {
+  const client = await getClientPromise(uri);
+  return client.db(dbName);
 }
