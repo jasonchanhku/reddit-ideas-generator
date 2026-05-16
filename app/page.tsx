@@ -2,11 +2,26 @@
 
 import { useEffect, useState } from "react";
 
-import type { AnalyzeIdeasResponse, RedditPost, SaasIdea } from "@/lib/types";
+import type { AnalyzeIdeasResponse, FocusMode, SaasIdea, TimeRange } from "@/lib/types";
 
 const EXAMPLE_SUBREDDITS = ["saas", "smallbusiness", "freelance", "marketing"];
+
+const TIME_RANGE_OPTIONS: { value: TimeRange; label: string }[] = [
+  { value: "week", label: "This Week" },
+  { value: "month", label: "This Month" },
+  { value: "year", label: "This Year" },
+  { value: "all", label: "All Time" },
+];
+
+const FOCUS_MODE_OPTIONS: { value: FocusMode; label: string; description: string }[] = [
+  { value: "pain-points", label: "Pain Points", description: "Surface repeated user frustrations" },
+  { value: "revenue-first", label: "Revenue-First", description: "Find where users already pay" },
+  { value: "better-mousetrap", label: "Better Mousetrap", description: "Beat incumbents on one axis" },
+  { value: "emerging-trends", label: "Emerging Trends", description: "Catch category-defining moments" },
+];
+
 const LOADING_PHASES = [
-  "Scraping this week’s top Reddit threads.",
+  "Scraping top Reddit threads for the selected time range.",
   "Opening the strongest discussions and extracting comment signal.",
   "Grouping complaints into repeatable product opportunities.",
   "Scoring ideas and packaging the final market gaps.",
@@ -17,6 +32,8 @@ const FINAL_PHASE_BREAKDOWN = [
   "Estimating pricing, revenue potential, and go-to-market.",
   "Linking each idea back to source Reddit threads.",
 ];
+
+type RunConfig = { subreddits: string[]; timeRange: TimeRange; focusMode: FocusMode };
 
 function scoreTone(score: number): string {
   if (score >= 8) {
@@ -98,20 +115,6 @@ function LinkField({
   );
 }
 
-function SourcePill({ title, url }: { title: string; url: string }) {
-  return (
-    <a
-      href={url}
-      target="_blank"
-      rel="noreferrer"
-      className="block rounded-2xl border border-slate-200 bg-white px-4 py-3 transition hover:border-slate-300 hover:bg-slate-50"
-      title={title}
-    >
-      <span className="line-clamp-2 text-sm font-medium leading-6 text-slate-800">{title}</span>
-    </a>
-  );
-}
-
 function IdeaCard({ idea }: { idea: SaasIdea }) {
   return (
     <article className="glass-panel rounded-[28px] p-6 sm:p-7">
@@ -150,50 +153,38 @@ function IdeaCard({ idea }: { idea: SaasIdea }) {
   );
 }
 
-function ThreadCard({ post }: { post: RedditPost }) {
+function SourcePill({ title, url }: { title: string; url: string }) {
   return (
-    <article className="glass-panel rounded-[24px] p-5">
-      <div className="flex items-start justify-between gap-4">
-        <div className="space-y-2">
-          <p className="font-mono text-[0.68rem] uppercase tracking-[0.22em] text-slate-500">
-            Source Thread
-          </p>
-          <h3 className="text-lg font-semibold leading-7 text-slate-900">{post.title}</h3>
-        </div>
-        <a
-          href={post.threadUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="shrink-0 rounded-full border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
-        >
-          Open Thread
-        </a>
-      </div>
-
-      <div className="mt-4 space-y-3">
-        {post.comments.length > 0 ? post.comments.map((comment) => (
-          <div key={`${post.permalink}-${comment}`} className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-600">
-            {comment}
-          </div>
-        )) : (
-          <p className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-500">
-            No comments were extracted for this thread, but the title still contributed to the analysis.
-          </p>
-        )}
-      </div>
-    </article>
+    <a
+      href={url}
+      target="_blank"
+      rel="noreferrer"
+      className="block rounded-2xl border border-slate-200 bg-white px-4 py-3 transition hover:border-slate-300 hover:bg-slate-50"
+      title={title}
+    >
+      <span className="line-clamp-2 text-sm font-medium leading-6 text-slate-800">{title}</span>
+    </a>
   );
 }
 
 export default function Home() {
-  const [subreddit, setSubreddit] = useState("saas");
-  const [lastSubreddit, setLastSubreddit] = useState("saas");
+  const [subreddits, setSubreddits] = useState<string[]>(["saas"]);
+  const [subredditInput, setSubredditInput] = useState("");
+  const [timeRange, setTimeRange] = useState<TimeRange>("week");
+  const [focusMode, setFocusMode] = useState<FocusMode>("pain-points");
+  const [lastConfig, setLastConfig] = useState<RunConfig>({
+    subreddits: ["saas"],
+    timeRange: "week",
+    focusMode: "pain-points",
+  });
+
   const [result, setResult] = useState<AnalyzeIdeasResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingStep, setLoadingStep] = useState(0);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [finalPhaseStep, setFinalPhaseStep] = useState(0);
+  const [loadingSubreddits, setLoadingSubreddits] = useState<string[]>([]);
 
   useEffect(() => {
     if (!loading) {
@@ -215,19 +206,32 @@ export default function Home() {
     return () => window.clearInterval(interval);
   }, [loading]);
 
-  async function runAnalysis(nextSubreddit = subreddit) {
+  function addSubreddit(raw: string) {
+    const normalized = raw.trim().replace(/^r\//i, "");
+    if (!normalized || subreddits.includes(normalized) || subreddits.length >= 5) return;
+    setSubreddits((prev) => [...prev, normalized]);
+  }
+
+  function removeSubreddit(name: string) {
+    setSubreddits((prev) => prev.filter((s) => s !== name));
+  }
+
+  async function runAnalysis(config: RunConfig = { subreddits, timeRange, focusMode }) {
+    if (config.subreddits.length === 0) return;
+
     setLoading(true);
     setError(null);
     setResult(null);
+    setLoadingSubreddits(config.subreddits);
 
     try {
       const response = await fetch("/api/analyze", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          subreddit: nextSubreddit.trim().replace(/^r\//i, ""),
+          subreddits: config.subreddits,
+          timeRange: config.timeRange,
+          focusMode: config.focusMode,
         }),
       });
 
@@ -238,7 +242,7 @@ export default function Home() {
       }
 
       setResult(payload);
-      setLastSubreddit(nextSubreddit);
+      setLastConfig(config);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Unexpected request error.");
     } finally {
@@ -246,13 +250,15 @@ export default function Home() {
     }
   }
 
-  const normalizedSubreddit = subreddit.trim().replace(/^r\//i, "") || "saas";
+  const displaySubreddits = loadingSubreddits.length > 0
+    ? loadingSubreddits.map((s) => `r/${s}`).join(", ")
+    : subreddits.map((s) => `r/${s}`).join(", ") || "r/saas";
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-5 py-8 sm:px-8 lg:px-10">
       <section className="glass-panel relative overflow-hidden rounded-[36px] px-6 py-7 sm:px-8 sm:py-9 lg:px-10">
         <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-orange-500 via-amber-400 to-sky-500" />
-        <div className="grid gap-8 lg:grid-cols-[1.15fr_0.85fr] lg:items-end">
+        <div className="grid gap-8 lg:grid-cols-[1.15fr_0.85fr] lg:items-start">
           <div className="space-y-5">
             <p className="font-mono text-[0.72rem] uppercase tracking-[0.28em] text-slate-500">
               Reddit Scraping + AI Validation
@@ -262,43 +268,140 @@ export default function Home() {
                 Turn noisy Reddit threads into validated SaaS bets.
               </h1>
               <p className="max-w-2xl text-base leading-7 text-slate-600 sm:text-lg">
-                Validly scrapes weekly Reddit discussions with Decodo, structures the strongest complaints, and sends them through Insforge AI to surface market gaps, demand, and stronger product angles.
+                Validly scrapes Reddit discussions with Decodo, structures the strongest complaints, and sends them through AI to surface market gaps, demand, and stronger product angles.
               </p>
             </div>
           </div>
 
           <div className="rounded-[30px] border border-white/70 bg-[var(--surface-strong)] p-5 shadow-[0_18px_48px_rgba(51,38,21,0.08)]">
-            <div className="space-y-4">
-              <label className="block space-y-2">
-                <span className="font-mono text-[0.72rem] uppercase tracking-[0.24em] text-slate-500">
-                  Subreddit
-                </span>
-                <input
-                  value={subreddit}
-                  onChange={(event) => setSubreddit(event.target.value)}
-                  placeholder="saas"
-                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-base text-slate-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
-                />
-              </label>
+            <div className="space-y-5">
 
-              <div className="flex flex-wrap gap-2">
-                {EXAMPLE_SUBREDDITS.map((item) => (
-                  <button
-                    key={item}
-                    type="button"
-                    onClick={() => setSubreddit(item)}
-                    className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-600 transition hover:border-slate-300 hover:bg-slate-50"
-                  >
-                    r/{item}
-                  </button>
-                ))}
+              {/* Subreddit tag input */}
+              <div className="space-y-2">
+                <span className="font-mono text-[0.72rem] uppercase tracking-[0.24em] text-slate-500">
+                  Subreddits{subreddits.length > 0 ? ` (${subreddits.length}/5)` : ""}
+                </span>
+
+                {subreddits.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {subreddits.map((sub) => (
+                      <span
+                        key={sub}
+                        className="inline-flex items-center gap-1.5 rounded-full border border-orange-200 bg-orange-50 px-3 py-1 text-sm font-medium text-orange-800"
+                      >
+                        r/{sub}
+                        <button
+                          type="button"
+                          aria-label={`Remove r/${sub}`}
+                          onClick={() => removeSubreddit(sub)}
+                          className="ml-0.5 rounded-full text-orange-400 transition hover:text-orange-700"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {subreddits.length < 5 && (
+                  <div className="flex gap-2">
+                    <input
+                      value={subredditInput}
+                      onChange={(e) => setSubredditInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if ((e.key === "Enter" || e.key === ",") && subredditInput.trim()) {
+                          e.preventDefault();
+                          addSubreddit(subredditInput);
+                          setSubredditInput("");
+                        }
+                      }}
+                      placeholder={subreddits.length === 0 ? "saas" : "Add another…"}
+                      className="flex-1 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-base text-slate-900 outline-none transition focus:border-orange-400 focus:ring-4 focus:ring-orange-100"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        addSubreddit(subredditInput);
+                        setSubredditInput("");
+                      }}
+                      disabled={!subredditInput.trim()}
+                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:opacity-40"
+                    >
+                      Add
+                    </button>
+                  </div>
+                )}
+
+                <div className="flex flex-wrap gap-2">
+                  {EXAMPLE_SUBREDDITS.filter((s) => !subreddits.includes(s)).map((item) => (
+                    <button
+                      key={item}
+                      type="button"
+                      onClick={() => addSubreddit(item)}
+                      disabled={subreddits.length >= 5}
+                      className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 disabled:opacity-40"
+                    >
+                      + r/{item}
+                    </button>
+                  ))}
+                </div>
               </div>
 
+              {/* Time range */}
+              <div className="space-y-2">
+                <span className="font-mono text-[0.72rem] uppercase tracking-[0.24em] text-slate-500">
+                  Time Range
+                </span>
+                <div className="flex flex-wrap gap-2">
+                  {TIME_RANGE_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setTimeRange(opt.value)}
+                      className={`rounded-full border px-3 py-1.5 text-sm font-medium transition ${
+                        timeRange === opt.value
+                          ? "border-orange-400 bg-orange-50 text-orange-700"
+                          : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Focus mode */}
+              <div className="space-y-2">
+                <span className="font-mono text-[0.72rem] uppercase tracking-[0.24em] text-slate-500">
+                  Focus Mode
+                </span>
+                <div className="grid grid-cols-2 gap-2">
+                  {FOCUS_MODE_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setFocusMode(opt.value)}
+                      className={`rounded-[18px] border px-3 py-3 text-left transition ${
+                        focusMode === opt.value
+                          ? "border-orange-400 bg-orange-50"
+                          : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
+                      }`}
+                    >
+                      <p className={`text-sm font-semibold ${focusMode === opt.value ? "text-orange-800" : "text-slate-800"}`}>
+                        {opt.label}
+                      </p>
+                      <p className="mt-0.5 text-xs leading-5 text-slate-500">{opt.description}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Action buttons */}
               <div className="flex flex-col gap-3 sm:flex-row">
                 <button
                   type="button"
                   onClick={() => runAnalysis()}
-                  disabled={loading}
+                  disabled={loading || subreddits.length === 0}
                   className="inline-flex items-center justify-center rounded-full bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-400"
                 >
                   {loading ? "Analyzing Reddit signal..." : "Analyze Ideas"}
@@ -306,7 +409,7 @@ export default function Home() {
 
                 <button
                   type="button"
-                  onClick={() => runAnalysis(lastSubreddit)}
+                  onClick={() => runAnalysis(lastConfig)}
                   disabled={loading}
                   className="inline-flex items-center justify-center rounded-full border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
                 >
@@ -320,9 +423,9 @@ export default function Home() {
 
       <section className="mt-6 grid gap-4 lg:grid-cols-3">
         {[
-          "Decodo scrapes the top weekly subreddit page and post threads.",
-          "Cheerio structures titles plus top 2–3 comments from up to 8 higher-signal posts.",
-          "Insforge scores each opportunity and returns strict JSON only.",
+          "Decodo scrapes the top subreddit posts across your selected time range.",
+          "Cheerio structures titles plus top 2–3 comments from up to 8 higher-signal posts per subreddit.",
+          "AI scores each opportunity using your chosen focus mode and returns strict JSON.",
         ].map((item) => (
           <div key={item} className="glass-panel rounded-[24px] px-5 py-4 text-sm leading-6 text-slate-600">
             {item}
@@ -345,7 +448,7 @@ export default function Home() {
                 Analysis In Flight
               </p>
               <h2 className="text-2xl font-semibold tracking-tight text-slate-900">
-                Working through r/{normalizedSubreddit}
+                Working through {displaySubreddits}
               </h2>
               <p className="max-w-2xl text-base leading-7 text-slate-600">
                 {LOADING_PHASES[loadingStep]}
@@ -436,7 +539,7 @@ export default function Home() {
                 Results
               </p>
               <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">
-                r/{result.subreddit} produced {result.ideas.length} validated ideas
+                r/{result.subreddits.join(" + ")} produced {result.ideas.length} validated ideas
               </h2>
             </div>
             <p className="text-sm text-slate-500">
@@ -474,7 +577,7 @@ export default function Home() {
         </section>
       ) : (
         <section className="glass-panel mt-6 rounded-[28px] p-6 text-sm leading-7 text-slate-600">
-          Enter a subreddit, run the workflow, and the app will return concise SaaS opportunities grounded in real weekly Reddit conversations.
+          Select up to 5 subreddits, choose a time range and focus mode, then run the workflow to get concise SaaS opportunities grounded in real Reddit conversations.
         </section>
       )}
     </main>

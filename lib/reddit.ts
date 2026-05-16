@@ -2,7 +2,7 @@ import * as cheerio from "cheerio";
 import type { AnyNode } from "domhandler";
 
 import { getServerEnv } from "@/lib/env";
-import type { RedditPost, StructuredRedditData } from "@/lib/types";
+import type { RedditPost, StructuredRedditData, TimeRange } from "@/lib/types";
 
 const DECODO_ENDPOINT = "https://scraper-api.decodo.com/v2/scrape";
 const MAX_POSTS = 8;
@@ -435,9 +435,9 @@ async function mapInBatches<T, R>(
   return results;
 }
 
-export async function scrapeReddit(subreddit: string): Promise<string> {
+export async function scrapeReddit(subreddit: string, timeRange: TimeRange = "week"): Promise<string> {
   const normalizedSubreddit = subreddit.trim().replace(/^r\//i, "");
-  const url = `https://old.reddit.com/r/${normalizedSubreddit}/top/?t=week`;
+  const url = `https://old.reddit.com/r/${normalizedSubreddit}/top/?t=${timeRange}`;
 
   console.log(`\n\n${'='.repeat(80)}`);
   console.log(`🚀 [REDDIT SCRAPER] Starting scrape for r/${normalizedSubreddit}`);
@@ -448,10 +448,10 @@ export async function scrapeReddit(subreddit: string): Promise<string> {
   return scrapeUrl(url);
 }
 
-export async function structureRedditData(subreddit: string): Promise<StructuredRedditData> {
+export async function structureRedditData(subreddit: string, timeRange: TimeRange = "week"): Promise<StructuredRedditData> {
   console.log(`\n🏗️  [STRUCTURE DATA] Building structured data for r/${subreddit}...`);
-  
-  const subredditHtml = await scrapeReddit(subreddit);
+
+  const subredditHtml = await scrapeReddit(subreddit, timeRange);
   const candidates = extractPostCandidates(subredditHtml);
 
   if (candidates.length === 0) {
@@ -499,7 +499,33 @@ export async function structureRedditData(subreddit: string): Promise<Structured
   console.log(`${'='.repeat(80)}\n`);
 
   return {
-    subreddit: subreddit.trim().replace(/^r\//i, ""),
+    subreddits: [subreddit.trim().replace(/^r\//i, "")],
+    scrapedAt: new Date().toISOString(),
+    posts: deduped,
+  };
+}
+
+export async function scrapeMultipleSubreddits(
+  subreddits: string[],
+  timeRange: TimeRange,
+): Promise<StructuredRedditData> {
+  const normalized = subreddits.map((s) => s.trim().replace(/^r\//i, ""));
+
+  console.log(`\n🌐 [MULTI-SCRAPE] Scraping ${normalized.length} subreddits in parallel: ${normalized.join(", ")}`);
+
+  const results = await Promise.all(
+    normalized.map((sub) => structureRedditData(sub, timeRange)),
+  );
+
+  const allPosts = results.flatMap((r) => r.posts);
+  const deduped = Array.from(new Map(allPosts.map((p) => [p.permalink, p])).values())
+    .sort((a, b) => b.comments.length - a.comments.length)
+    .slice(0, MAX_POSTS);
+
+  console.log(`\n✨ [MULTI-SCRAPE COMPLETE] Merged ${allPosts.length} posts → ${deduped.length} after dedup/cap`);
+
+  return {
+    subreddits: normalized,
     scrapedAt: new Date().toISOString(),
     posts: deduped,
   };

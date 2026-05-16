@@ -2,18 +2,29 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { analyzeWithAI } from "@/lib/ai";
-import { structureRedditData } from "@/lib/reddit";
+import { scrapeMultipleSubreddits } from "@/lib/reddit";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
+const subredditNameSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(50)
+  .regex(/^[A-Za-z0-9_]+$/, "Use subreddit names without /r/ or spaces")
+  .transform((s) => s.replace(/^r\//i, ""));
+
 const requestSchema = z.object({
-  subreddit: z
-    .string()
-    .trim()
-    .min(1, "Subreddit is required")
-    .max(50, "Subreddit is too long")
-    .regex(/^[A-Za-z0-9_]+$/, "Use a subreddit name without /r/ or spaces"),
+  subreddits: z
+    .array(subredditNameSchema)
+    .min(1, "At least one subreddit is required")
+    .max(5, "Maximum 5 subreddits")
+    .transform((arr) => [...new Set(arr)]),
+  timeRange: z.enum(["week", "month", "year", "all"]).default("week"),
+  focusMode: z
+    .enum(["pain-points", "revenue-first", "better-mousetrap", "emerging-trends"])
+    .default("pain-points"),
 });
 
 function getErrorMessage(error: unknown): string {
@@ -31,16 +42,16 @@ function getErrorMessage(error: unknown): string {
 export async function POST(request: Request) {
   try {
     const body = requestSchema.parse(await request.json());
-    console.log(`[API] Starting analysis for r/${body.subreddit}`);
-    
-    const source = await structureRedditData(body.subreddit);
-    console.log(`[API] Scraped ${source.posts.length} posts`);
-    
-    const ideas = await analyzeWithAI(source);
+    console.log(`[API] Starting analysis for r/${body.subreddits.join(", ")} | timeRange=${body.timeRange} | focusMode=${body.focusMode}`);
+
+    const source = await scrapeMultipleSubreddits(body.subreddits, body.timeRange);
+    console.log(`[API] Scraped ${source.posts.length} posts from ${source.subreddits.length} subreddit(s)`);
+
+    const ideas = await analyzeWithAI(source, body.focusMode);
     console.log(`[API] Generated ${ideas.length} ideas`);
 
     return NextResponse.json({
-      subreddit: source.subreddit,
+      subreddits: source.subreddits,
       source,
       ideas,
     });
