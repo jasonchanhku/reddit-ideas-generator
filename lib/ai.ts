@@ -14,13 +14,23 @@ const sourceThreadSchema = z.object({
   thread_url: z.string().trim().url(),
 });
 
+// Coerces objects (e.g. {"name": "Acme", "pricing": "$99/mo"}) to flat strings.
+// Some focus modes prompt the AI to include extra detail, which causes it to return
+// objects instead of plain strings despite the JSON schema instruction.
+const coercedString = z.string().trim().or(
+  z.record(z.string(), z.unknown()).transform((obj) => {
+    const parts = Object.values(obj).filter((v): v is string => typeof v === "string");
+    return parts.join(" — ") || JSON.stringify(obj);
+  }),
+);
+
 const ideaSchema = z.object({
   idea_name: z.string().trim().min(1),
   problem: z.string().trim().min(1),
   demand_level: z.enum(["Low", "Medium", "High"]),
-  existing_solutions: z.array(z.string().trim()).default([]),
-  similar_competitors: z.array(z.string().trim()).default([]),
-  user_complaints: z.array(z.string().trim()).default([]),
+  existing_solutions: z.array(coercedString).default([]),
+  similar_competitors: z.array(coercedString).default([]),
+  user_complaints: z.array(coercedString).default([]),
   opportunity: z.string().trim().min(1),
   monetization_model: z.string().trim().min(1),
   pricing_hint: z.string().trim().min(1),
