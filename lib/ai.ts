@@ -290,7 +290,7 @@ export async function analyzeWithAI(data: StructuredRedditData, focusMode: Focus
   const requestStart = Date.now();
   const response = await client.chat.completions.create({
     model: env.openaiModel,
-    temperature: 0.2,
+    temperature: 1.0,
     max_tokens: 2200,
     messages: [
       { role: "system", content: systemPrompt },
