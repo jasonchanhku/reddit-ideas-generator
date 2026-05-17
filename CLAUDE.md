@@ -36,7 +36,7 @@ POST /api/analyze { subreddits[], timeRange, focusModes[] }
         Zod-validate JSON response (min 1, max 10 ideas per mode)
         Tag each idea with focus_mode
       Merge all mode results, dedup by idea_name, sort by score desc
-      Optional MongoDB Atlas persistence (stores subreddits[], focusModes[])
+      Optional MongoDB Atlas persistence (stores subreddits[], focusModes[], timeRange, ideas[], analyzed_at)
   → Response { subreddits[], source, ideas[] }   // ideas have focus_mode field
 ```
 
@@ -45,12 +45,14 @@ POST /api/analyze { subreddits[], timeRange, focusModes[] }
 | File | Role |
 |------|------|
 | `app/api/analyze/route.ts` | Single API endpoint; accepts `subreddits[]`, `timeRange`, `focusModes[]`; chains reddit → AI |
+| `app/api/runs/route.ts` | `GET /api/runs` — returns last 50 run summaries (no ideas) sorted newest-first; returns `{ runs: [] }` when MongoDB is unconfigured |
+| `app/api/runs/[id]/route.ts` | `GET /api/runs/:id` — returns full run with ideas; `DELETE /api/runs/:id` — removes run from MongoDB |
 | `lib/reddit.ts` | Decodo API integration; `scrapeMultipleSubreddits` runs subreddits in parallel; tries 3 request strategies, caches first success |
 | `lib/ai.ts` | AI client wrapper; `SYSTEM_PROMPTS` map keyed by `FocusMode`; `runSingleAnalysis` per mode in parallel; merges + deduplicates results; optional MongoDB write |
 | `lib/db.ts` | Cached MongoClient singleton (Next.js-safe); used only when `MONGODB_URI` is set |
 | `lib/env.ts` | Zod-validated env config; call `getServerEnv()` everywhere instead of `process.env` directly |
-| `lib/types.ts` | All shared TypeScript interfaces + `TimeRange` and `FocusMode` union types; `SaasIdea.focus_mode` is set post-parse |
-| `app/page.tsx` | Client component; searchable dropdown multiselect for subreddits, time range pills, multi-select focus mode grid, colour-coded idea cards |
+| `lib/types.ts` | All shared TypeScript interfaces + `TimeRange` and `FocusMode` union types; `SaasIdea.focus_mode` is set post-parse; `RunSummary` and `RunDocument` for stored run shapes |
+| `app/page.tsx` | Client component; searchable dropdown multiselect for subreddits, time range pills, multi-select focus mode grid, colour-coded idea cards, past runs dropdown with delete |
 
 ### Focus Modes
 
@@ -64,6 +66,14 @@ Defined in `lib/ai.ts` as `SYSTEM_PROMPTS: Record<FocusMode, string>`. Multiple 
 | `emerging-trends` | Spots new behaviours/workflows with no dominant tool yet |
 
 Each returned `SaasIdea` has a `focus_mode` field indicating which mode generated it. The UI renders a colour-coded badge per mode on each idea card.
+
+### Persistent Runs
+
+Each completed analysis run is written to MongoDB as a single document: `{ subreddits, focusModes, timeRange, ideas, analyzed_at }`. The collection is controlled by `MONGODB_COLLECTION` (default `ideas`) — one document per run, not per idea.
+
+`GET /api/runs` fetches run metadata (no `ideas` array) for the Past Runs dropdown. `GET /api/runs/:id` fetches the full document. `DELETE /api/runs/:id` removes it. When `MONGODB_URI` is unset all three routes return gracefully and the dropdown is hidden.
+
+Run display name format: `"May 17, 2026 14:30 — r/SaaS + r/microsaas · week"` (derived from `analyzed_at` + subreddits + timeRange; timeRange is omitted for legacy documents written before this feature).
 
 ### Resilience Design
 
