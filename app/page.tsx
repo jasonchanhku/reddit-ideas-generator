@@ -18,7 +18,21 @@ const EXAMPLE_SUBREDDITS = [
   "AppBusiness",
   "SaaSSales",
   "smallbusiness",
-  "freelance"
+  "freelance",
+  "vibecoding",
+  "AskVibecoders",
+  "AI_Agents",
+  "AgentsOfAI",
+  "AiBuilders",
+  "AIAssisted",
+  "ClaudeAI",
+  "ClaudeCode",
+  "cursor",
+  "SideProject",
+  "webdev",
+  "indiehackers",
+  "buildinpublic",
+  "lovable"
 ];
 
 const TIME_RANGE_OPTIONS: { value: TimeRange; label: string }[] = [
