@@ -282,7 +282,7 @@ export async function analyzeWithAI(data: StructuredRedditData, focusMode: Focus
 
   console.log(`\n🚀 [API CALL] Sending request to AI...`);
   console.log(`   Model: ${env.openaiModel}`);
-  console.log(`   Temperature: 0.2`);
+  console.log(`   Temperature: 1.0`);
   console.log(`   Max Tokens: 2200`);
   console.log(`   System Prompt Length: ${systemPrompt.length} chars`);
   console.log(`   User Content Length: ${JSON.stringify(compactData).length} chars`);

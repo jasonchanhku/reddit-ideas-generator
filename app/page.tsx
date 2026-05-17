@@ -4,7 +4,22 @@ import { useEffect, useState } from "react";
 
 import type { AnalyzeIdeasResponse, FocusMode, SaasIdea, TimeRange } from "@/lib/types";
 
-const EXAMPLE_SUBREDDITS = ["saas", "smallbusiness", "freelance", "marketing"];
+const EXAMPLE_SUBREDDITS = [
+  "SaaS",
+  "microsaas",
+  "SaasDevelopers",
+  "SaaSSolopreneurs",
+  "saasbuild",
+  "SaasSelection",
+  "SaaSMarketing",
+  "micro_saas",
+  "ShowsYourSaaS",
+  "SaaSStartups",
+  "AppBusiness",
+  "SaaSSales",
+  "smallbusiness",
+  "freelance"
+];
 
 const TIME_RANGE_OPTIONS: { value: TimeRange; label: string }[] = [
   { value: "week", label: "This Week" },
