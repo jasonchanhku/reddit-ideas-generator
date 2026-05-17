@@ -35,6 +35,7 @@ export interface SaasIdea {
   score: number;
   verdict: "Weak" | "Decent" | "Strong";
   source_threads: SourceThread[];
+  focus_mode?: FocusMode;
 }
 
 export interface AnalyzeIdeasResponse {

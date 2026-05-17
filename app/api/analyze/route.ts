@@ -22,9 +22,11 @@ const requestSchema = z.object({
     .max(5, "Maximum 5 subreddits")
     .transform((arr) => [...new Set(arr)]),
   timeRange: z.enum(["week", "month", "year", "all"]).default("week"),
-  focusMode: z
-    .enum(["pain-points", "revenue-first", "better-mousetrap", "emerging-trends"])
-    .default("pain-points"),
+  focusModes: z
+    .array(z.enum(["pain-points", "revenue-first", "better-mousetrap", "emerging-trends"]))
+    .min(1, "At least one focus mode is required")
+    .max(4)
+    .default(["pain-points"]),
 });
 
 function getErrorMessage(error: unknown): string {
@@ -42,12 +44,12 @@ function getErrorMessage(error: unknown): string {
 export async function POST(request: Request) {
   try {
     const body = requestSchema.parse(await request.json());
-    console.log(`[API] Starting analysis for r/${body.subreddits.join(", ")} | timeRange=${body.timeRange} | focusMode=${body.focusMode}`);
+    console.log(`[API] Starting analysis for r/${body.subreddits.join(", ")} | timeRange=${body.timeRange} | focusModes=${body.focusModes.join(", ")}`);
 
     const source = await scrapeMultipleSubreddits(body.subreddits, body.timeRange);
     console.log(`[API] Scraped ${source.posts.length} posts from ${source.subreddits.length} subreddit(s)`);
 
-    const ideas = await analyzeWithAI(source, body.focusMode);
+    const ideas = await analyzeWithAI(source, body.focusModes);
     console.log(`[API] Generated ${ideas.length} ideas`);
 
     return NextResponse.json({

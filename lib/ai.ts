@@ -41,7 +41,7 @@ const ideaSchema = z.object({
   source_threads: z.array(sourceThreadSchema).min(1).max(3),
 });
 
-const ideaArraySchema = z.array(ideaSchema).min(5).max(10);
+const ideaArraySchema = z.array(ideaSchema).min(1).max(10);
 
 const SHARED_OUTPUT_BLOCK = `
 OUTPUT STRICT JSON:
@@ -119,6 +119,15 @@ List the most similar competitors and their pricing tiers
 Set a realistic price point users would switch to
 Explain the fastest path to first dollar (not first user)
 Score each idea 1–10 weighted heavily toward monetisation likelihood
+
+REVENUE POTENTIAL FIELD — CRITICAL INSTRUCTION:
+For revenue_potential, actively mine the thread data for any quantitative signals users mention:
+- Dollar amounts they currently pay (e.g. "paying $200/mo for X")
+- ARR/MRR or revenue figures quoted by founders or users
+- App download counts or user numbers users reference
+- Pricing tiers of named competitors
+- Budget figures users mention they have available
+Quote these verbatim as evidence (e.g. "Thread mentions users paying $200/mo for X; 3 competitors at $99–$299/mo suggests $149/mo SaaS pricing viable"). If no figures appear in the threads, estimate from market signals and state it is an estimate.
 ${SHARED_OUTPUT_BLOCK}`,
 
   "better-mousetrap": `You are a product differentiation analyst.
@@ -212,9 +221,40 @@ function compactStructuredData(data: StructuredRedditData): StructuredRedditData
   console.log(`   Compacted posts: ${compacted.posts.length}`);
   console.log(`   Original comments: ${originalCommentCount}`);
   console.log(`   Compacted comments: ${compactedCommentCount}`);
-  console.log(`   Compression ratio: ${((compactedCommentCount / originalCommentCount) * 100).toFixed(1)}%`);
 
   return compacted;
+}
+
+async function runSingleAnalysis(
+  client: OpenAI,
+  compactData: StructuredRedditData,
+  focusMode: FocusMode,
+  env: ReturnType<typeof getServerEnv>,
+): Promise<SaasIdea[]> {
+  const systemPrompt = SYSTEM_PROMPTS[focusMode];
+
+  console.log(`\n🚀 [AI CALL] Mode: ${focusMode} | Model: ${env.openaiModel}`);
+
+  const requestStart = Date.now();
+  const response = await client.chat.completions.create({
+    model: env.openaiModel,
+    temperature: 0.2,
+    max_tokens: 2200,
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: JSON.stringify(compactData) },
+    ],
+  });
+
+  const elapsed = Date.now() - requestStart;
+  console.log(`   ⏱️  [${focusMode}] Response: ${elapsed}ms`);
+
+  const rawContent = response.choices[0]?.message?.content ?? "";
+  const ideas = parseJsonArray(rawContent);
+
+  console.log(`   ✅ [${focusMode}] Parsed ${ideas.length} ideas`);
+
+  return ideas.map((idea) => ({ ...idea, focus_mode: focusMode }));
 }
 
 async function maybeStoreIdeas(
@@ -222,6 +262,7 @@ async function maybeStoreIdeas(
   dbName: string,
   collection: string,
   subreddits: string[],
+  focusModes: FocusMode[],
   ideas: SaasIdea[],
 ): Promise<void> {
   if (!mongodbUri) {
@@ -240,7 +281,7 @@ async function maybeStoreIdeas(
     const db = await getDb(mongodbUri, dbName);
     const analyzed_at = new Date().toISOString();
 
-    await db.collection(collection).insertOne({ subreddits, ideas, analyzed_at });
+    await db.collection(collection).insertOne({ subreddits, focusModes, ideas, analyzed_at });
 
     console.log(`   ✅ Successfully stored ${ideas.length} ideas`);
   } catch (error) {
@@ -249,13 +290,12 @@ async function maybeStoreIdeas(
   }
 }
 
-export async function analyzeWithAI(data: StructuredRedditData, focusMode: FocusMode = "pain-points"): Promise<SaasIdea[]> {
+export async function analyzeWithAI(data: StructuredRedditData, focusModes: FocusMode[] = ["pain-points"]): Promise<SaasIdea[]> {
   console.log(`\n\n${"=".repeat(80)}`);
   console.log(`🤖 [AI ANALYSIS] Starting idea generation...`);
   console.log(`   Subreddits: ${data.subreddits.join(", ")}`);
-  console.log(`   Focus Mode: ${focusMode}`);
+  console.log(`   Focus Modes: ${focusModes.join(", ")}`);
   console.log(`   Posts: ${data.posts.length}`);
-  console.log(`   Total Comments: ${data.posts.reduce((sum, p) => sum + p.comments.length, 0)}`);
   console.log("=".repeat(80));
 
   const env = getServerEnv();
@@ -270,76 +310,50 @@ export async function analyzeWithAI(data: StructuredRedditData, focusMode: Focus
   const payloadSize = JSON.stringify(compactData).length;
   console.log(`   Payload Size: ${payloadSize} bytes (${(payloadSize / 1024).toFixed(2)} KB)`);
 
-  const systemPrompt = SYSTEM_PROMPTS[focusMode];
-
-  console.log(`\n🔧 [CLIENT] Creating OpenAI client...`);
   const client = new OpenAI({
     apiKey: env.openaiApiKey,
     baseURL: env.openaiBaseUrl,
     timeout: env.openaiTimeoutMs,
   });
-  console.log(`   ✅ Client created`);
 
-  console.log(`\n🚀 [API CALL] Sending request to AI...`);
-  console.log(`   Model: ${env.openaiModel}`);
-  console.log(`   Temperature: 1.0`);
-  console.log(`   Max Tokens: 2200`);
-  console.log(`   System Prompt Length: ${systemPrompt.length} chars`);
-  console.log(`   User Content Length: ${JSON.stringify(compactData).length} chars`);
+  console.log(`\n🔄 [PARALLEL AI] Running ${focusModes.length} mode(s) in parallel...`);
 
-  const requestStart = Date.now();
-  const response = await client.chat.completions.create({
-    model: env.openaiModel,
-    temperature: 1.0,
-    max_tokens: 2200,
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: JSON.stringify(compactData) },
-    ],
-  });
+  const allResults = await Promise.all(
+    focusModes.map((mode) => runSingleAnalysis(client, compactData, mode, env)),
+  );
 
-  const requestElapsed = Date.now() - requestStart;
-  console.log(`   ⏱️  AI Response Time: ${requestElapsed}ms (${(requestElapsed / 1000).toFixed(2)}s)`);
+  // Merge, deduplicate by normalized idea_name (keep highest score), sort by score desc
+  const seen = new Map<string, SaasIdea>();
+  for (const ideas of allResults) {
+    for (const idea of ideas) {
+      const key = idea.idea_name.toLowerCase().trim();
+      const existing = seen.get(key);
+      if (!existing || idea.score > existing.score) {
+        seen.set(key, idea);
+      }
+    }
+  }
 
-  console.log(`\n📤 [RESPONSE] Processing AI response...`);
-  const rawContent = response.choices[0]?.message?.content ?? "";
-  console.log(`   Raw Content Length: ${rawContent.length} chars`);
-  console.log(`   First 100 chars: ${rawContent.slice(0, 100).replace(/\n/g, " ")}...`);
+  const merged = Array.from(seen.values()).sort((a, b) => b.score - a.score);
 
-  console.log(`\n🔍 [PARSING] Extracting and validating ideas...`);
-  const ideas = parseJsonArray(rawContent);
-
-  console.log(`\n✨ [IDEAS GENERATED] ${ideas.length} SaaS ideas`);
+  console.log(`\n✨ [IDEAS GENERATED] ${merged.length} unique SaaS ideas across ${focusModes.length} mode(s)`);
   console.log("=".repeat(80));
 
-  ideas.forEach((idea, index) => {
-    console.log(`\n💡 [IDEA ${index + 1}/${ideas.length}]`);
+  merged.forEach((idea, index) => {
+    console.log(`\n💡 [IDEA ${index + 1}/${merged.length}] [${idea.focus_mode}]`);
     console.log(`   Name: ${idea.idea_name}`);
-    console.log(`   Score: ${idea.score}/10`);
-    console.log(`   Verdict: ${idea.verdict}`);
-    console.log(`   Demand: ${idea.demand_level}`);
+    console.log(`   Score: ${idea.score}/10 | Verdict: ${idea.verdict} | Demand: ${idea.demand_level}`);
     console.log(`   Problem: ${idea.problem.slice(0, 80)}${idea.problem.length > 80 ? "..." : ""}`);
-    console.log(`   Opportunity: ${idea.opportunity.slice(0, 80)}${idea.opportunity.length > 80 ? "..." : ""}`);
-    console.log(`   Monetization: ${idea.monetization_model}`);
-    console.log(`   Source Threads: ${idea.source_threads.length}`);
-    idea.source_threads.forEach((thread, i) => {
-      console.log(`      ${i + 1}. ${thread.title.slice(0, 60)}${thread.title.length > 60 ? "..." : ""}`);
-    });
   });
 
   console.log(`\n${"=".repeat(80)}`);
   console.log(`📊 [SUMMARY]`);
-  console.log(`   Total Ideas: ${ideas.length}`);
-  console.log(`   Strong Ideas: ${ideas.filter((i) => i.verdict === "Strong").length}`);
-  console.log(`   Decent Ideas: ${ideas.filter((i) => i.verdict === "Decent").length}`);
-  console.log(`   Weak Ideas: ${ideas.filter((i) => i.verdict === "Weak").length}`);
-  console.log(`   Avg Score: ${(ideas.reduce((sum, i) => sum + i.score, 0) / ideas.length).toFixed(2)}`);
-  console.log(`   High Demand: ${ideas.filter((i) => i.demand_level === "High").length}`);
-  console.log(`   Medium Demand: ${ideas.filter((i) => i.demand_level === "Medium").length}`);
-  console.log(`   Low Demand: ${ideas.filter((i) => i.demand_level === "Low").length}`);
+  console.log(`   Total Ideas: ${merged.length}`);
+  console.log(`   Strong: ${merged.filter((i) => i.verdict === "Strong").length} | Decent: ${merged.filter((i) => i.verdict === "Decent").length} | Weak: ${merged.filter((i) => i.verdict === "Weak").length}`);
+  console.log(`   Avg Score: ${(merged.reduce((sum, i) => sum + i.score, 0) / merged.length).toFixed(2)}`);
   console.log(`${"=".repeat(80)}\n`);
 
-  await maybeStoreIdeas(env.mongodbUri, env.mongodbDbName, env.mongodbCollection, data.subreddits, ideas);
+  await maybeStoreIdeas(env.mongodbUri, env.mongodbDbName, env.mongodbCollection, data.subreddits, focusModes, merged);
 
-  return ideas;
+  return merged;
 }
