@@ -49,7 +49,7 @@ export async function POST(request: Request) {
     const source = await scrapeMultipleSubreddits(body.subreddits, body.timeRange);
     console.log(`[API] Scraped ${source.posts.length} posts from ${source.subreddits.length} subreddit(s)`);
 
-    const ideas = await analyzeWithAI(source, body.focusModes);
+    const ideas = await analyzeWithAI(source, body.focusModes, body.timeRange);
     console.log(`[API] Generated ${ideas.length} ideas`);
 
     return NextResponse.json({
