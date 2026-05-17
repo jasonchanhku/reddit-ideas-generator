@@ -47,3 +47,35 @@ export async function GET(
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
+
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> },
+): Promise<NextResponse> {
+  const env = getServerEnv();
+  const { id } = await params;
+
+  if (!ObjectId.isValid(id)) {
+    return NextResponse.json({ error: "Invalid run ID." }, { status: 400 });
+  }
+
+  if (!env.mongodbUri) {
+    return NextResponse.json({ error: "Persistence not configured." }, { status: 503 });
+  }
+
+  try {
+    const db = await getDb(env.mongodbUri, env.mongodbDbName);
+    const result = await db
+      .collection(env.mongodbCollection)
+      .deleteOne({ _id: new ObjectId(id) });
+
+    if (result.deletedCount === 0) {
+      return NextResponse.json({ error: "Run not found." }, { status: 404 });
+    }
+
+    return NextResponse.json({ deleted: true });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to delete run.";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}

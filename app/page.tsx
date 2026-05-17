@@ -32,7 +32,8 @@ const EXAMPLE_SUBREDDITS = [
   "webdev",
   "indiehackers",
   "buildinpublic",
-  "lovable"
+  "lovable",
+  "AiAutomations"
 ];
 
 const TIME_RANGE_OPTIONS: { value: TimeRange; label: string }[] = [
@@ -334,9 +335,11 @@ function PastRunsDropdown({
 function LoadedRunBanner({
   run,
   onDismiss,
+  onDelete,
 }: {
   run: RunDocument;
   onDismiss: () => void;
+  onDelete: () => void;
 }) {
   const date = new Date(run.analyzed_at).toLocaleString("en-US", {
     month: "short",
@@ -364,13 +367,22 @@ function LoadedRunBanner({
           {run.focusModes.map((m) => FOCUS_MODE_OPTIONS.find((o) => o.value === m)?.label ?? m).join(", ")}
         </p>
       </div>
-      <button
-        type="button"
-        onClick={onDismiss}
-        className="mt-0.5 shrink-0 text-sm font-semibold text-sky-700 hover:text-sky-900"
-      >
-        Clear ×
-      </button>
+      <div className="flex shrink-0 items-center gap-3">
+        <button
+          type="button"
+          onClick={onDelete}
+          className="mt-0.5 text-sm font-semibold text-rose-500 hover:text-rose-700"
+        >
+          Delete
+        </button>
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="mt-0.5 text-sm font-semibold text-sky-700 hover:text-sky-900"
+        >
+          Clear ×
+        </button>
+      </div>
     </div>
   );
 }
@@ -571,6 +583,19 @@ export default function Home() {
       setSelectedRunId(null);
     } finally {
       setLoadingRunDetail(false);
+    }
+  }
+
+  async function deleteRun(id: string) {
+    if (!window.confirm("Delete this run? This cannot be undone.")) return;
+    try {
+      const res = await fetch(`/api/runs/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to delete run.");
+      setLoadedRun(null);
+      setSelectedRunId(null);
+      setPastRuns((prev) => prev.filter((r) => r._id !== id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete run.");
     }
   }
 
@@ -846,6 +871,7 @@ export default function Home() {
           <LoadedRunBanner
             run={loadedRun}
             onDismiss={() => { setLoadedRun(null); setSelectedRunId(null); }}
+            onDelete={() => deleteRun(loadedRun._id)}
           />
           <section className="mt-6 space-y-6">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
