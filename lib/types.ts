@@ -1,3 +1,7 @@
+export type TimeRange = "week" | "month" | "year" | "all";
+
+export type FocusMode = "pain-points" | "revenue-first" | "better-mousetrap" | "emerging-trends";
+
 export interface RedditPost {
   title: string;
   comments: string[];
@@ -11,7 +15,7 @@ export interface SourceThread {
 }
 
 export interface StructuredRedditData {
-  subreddit: string;
+  subreddits: string[];
   scrapedAt: string;
   posts: RedditPost[];
 }
@@ -31,10 +35,11 @@ export interface SaasIdea {
   score: number;
   verdict: "Weak" | "Decent" | "Strong";
   source_threads: SourceThread[];
+  focus_mode?: FocusMode;
 }
 
 export interface AnalyzeIdeasResponse {
-  subreddit: string;
+  subreddits: string[];
   source: StructuredRedditData;
   ideas: SaasIdea[];
 }
