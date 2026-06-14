@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import type { AnalyzeIdeasResponse, FocusMode, SaasIdea, TimeRange } from "@/lib/types";
+import type { AnalyzeIdeasResponse, FocusMode, RunDocument, RunSummary, SaasIdea, TimeRange } from "@/lib/types";
 
 const EXAMPLE_SUBREDDITS = [
   "SaaS",
@@ -32,7 +32,15 @@ const EXAMPLE_SUBREDDITS = [
   "webdev",
   "indiehackers",
   "buildinpublic",
-  "lovable"
+  "lovable",
+  "AiAutomations",
+  "B2BSaaS",
+  "StartupSoloFounder",
+  "n8n_ai_agents",
+  "n8n",
+  "n8nbusinessautomation",
+  "AppBuilding",
+  "aisolobusinesses"
 ];
 
 const TIME_RANGE_OPTIONS: { value: TimeRange; label: string }[] = [
@@ -55,6 +63,28 @@ const FOCUS_MODE_COLORS: Record<FocusMode, string> = {
   "better-mousetrap": "border-sky-200 bg-sky-50 text-sky-700",
   "emerging-trends": "border-violet-200 bg-violet-50 text-violet-700",
 };
+
+const TIME_RANGE_LABELS: Record<string, string> = {
+  week: "week",
+  month: "month",
+  year: "year",
+  all: "all time",
+};
+
+function formatRunLabel(run: RunSummary): string {
+  const date = new Date(run.analyzed_at);
+  const dateStr = date.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  const subredditStr = run.subreddits.map((s) => `r/${s}`).join(" + ");
+  const rangeStr = run.timeRange ? ` · ${TIME_RANGE_LABELS[run.timeRange] ?? run.timeRange}` : "";
+  return `${dateStr} — ${subredditStr}${rangeStr}`;
+}
 
 const LOADING_PHASES = [
   "Scraping top Reddit threads for the selected time range.",
@@ -268,6 +298,102 @@ function SubredditMultiSelect({
   );
 }
 
+// ── Past runs dropdown ──────────────────────────────────────────────────────
+
+function PastRunsDropdown({
+  runs,
+  selectedId,
+  loading,
+  onSelect,
+}: {
+  runs: RunSummary[];
+  selectedId: string | null;
+  loading: boolean;
+  onSelect: (id: string) => void;
+}) {
+  if (!loading && runs.length === 0) return null;
+
+  return (
+    <div className="space-y-2">
+      <span className="font-mono text-[0.72rem] uppercase tracking-[0.24em] text-slate-500">
+        Past Runs
+      </span>
+      <select
+        value={selectedId ?? ""}
+        onChange={(e) => onSelect(e.target.value)}
+        disabled={loading}
+        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 focus:outline-none focus:ring-4 focus:ring-orange-100 disabled:text-slate-400"
+      >
+        <option value="">
+          {loading ? "Loading past runs…" : "Load a past run…"}
+        </option>
+        {runs.map((run) => (
+          <option key={run._id} value={run._id}>
+            {formatRunLabel(run)}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+// ── Loaded run banner ───────────────────────────────────────────────────────
+
+function LoadedRunBanner({
+  run,
+  onDismiss,
+  onDelete,
+}: {
+  run: RunDocument;
+  onDismiss: () => void;
+  onDelete: () => void;
+}) {
+  const date = new Date(run.analyzed_at).toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+
+  return (
+    <div className="glass-panel mt-6 flex items-start justify-between gap-4 rounded-[28px] border border-sky-200 bg-sky-50/60 px-5 py-4">
+      <div className="space-y-1">
+        <p className="font-mono text-[0.68rem] uppercase tracking-[0.22em] text-sky-600">
+          Viewing Past Run — {date}
+        </p>
+        <p className="text-sm text-slate-700">
+          <span className="font-semibold">{run.subreddits.map((s) => `r/${s}`).join(" + ")}</span>
+          {run.timeRange && (
+            <span className="ml-2 text-slate-500">
+              · {TIME_RANGE_LABELS[run.timeRange] ?? run.timeRange}
+            </span>
+          )}
+          {" · "}
+          {run.focusModes.map((m) => FOCUS_MODE_OPTIONS.find((o) => o.value === m)?.label ?? m).join(", ")}
+        </p>
+      </div>
+      <div className="flex shrink-0 items-center gap-3">
+        <button
+          type="button"
+          onClick={onDelete}
+          className="mt-0.5 text-sm font-semibold text-rose-500 hover:text-rose-700"
+        >
+          Delete
+        </button>
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="mt-0.5 text-sm font-semibold text-sky-700 hover:text-sky-900"
+        >
+          Clear ×
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── Idea card ───────────────────────────────────────────────────────────────
 
 function Field({ label, value }: { label: string; value: string | string[] }) {
@@ -381,6 +507,12 @@ export default function Home() {
     focusModes: ["pain-points"],
   });
 
+  const [pastRuns, setPastRuns] = useState<RunSummary[]>([]);
+  const [loadingRuns, setLoadingRuns] = useState(false);
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+  const [loadedRun, setLoadedRun] = useState<RunDocument | null>(null);
+  const [loadingRunDetail, setLoadingRunDetail] = useState(false);
+
   const [result, setResult] = useState<AnalyzeIdeasResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -388,6 +520,24 @@ export default function Home() {
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [finalPhaseStep, setFinalPhaseStep] = useState(0);
   const [loadingSubreddits, setLoadingSubreddits] = useState<string[]>([]);
+
+  useEffect(() => {
+    async function fetchRuns() {
+      setLoadingRuns(true);
+      try {
+        const res = await fetch("/api/runs");
+        if (res.ok) {
+          const data = (await res.json()) as { runs: RunSummary[] };
+          setPastRuns(data.runs ?? []);
+        }
+      } catch {
+        // non-critical — silently ignore
+      } finally {
+        setLoadingRuns(false);
+      }
+    }
+    fetchRuns();
+  }, []);
 
   useEffect(() => {
     if (!loading) {
@@ -419,6 +569,43 @@ export default function Home() {
     });
   }
 
+  async function loadRun(id: string) {
+    if (!id) {
+      setSelectedRunId(null);
+      setLoadedRun(null);
+      return;
+    }
+    setSelectedRunId(id);
+    setLoadingRunDetail(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/runs/${id}`);
+      if (!res.ok) throw new Error("Failed to load run.");
+      const data = (await res.json()) as { run: RunDocument };
+      setLoadedRun(data.run);
+      setResult(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load run.");
+      setLoadedRun(null);
+      setSelectedRunId(null);
+    } finally {
+      setLoadingRunDetail(false);
+    }
+  }
+
+  async function deleteRun(id: string) {
+    if (!window.confirm("Delete this run? This cannot be undone.")) return;
+    try {
+      const res = await fetch(`/api/runs/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to delete run.");
+      setLoadedRun(null);
+      setSelectedRunId(null);
+      setPastRuns((prev) => prev.filter((r) => r._id !== id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete run.");
+    }
+  }
+
   async function runAnalysis(config: RunConfig = { subreddits, timeRange, focusModes }) {
     if (config.subreddits.length === 0) return;
 
@@ -446,6 +633,15 @@ export default function Home() {
 
       setResult(payload);
       setLastConfig(config);
+      setLoadedRun(null);
+      setSelectedRunId(null);
+      try {
+        const runsRes = await fetch("/api/runs");
+        if (runsRes.ok) {
+          const runsData = (await runsRes.json()) as { runs: RunSummary[] };
+          setPastRuns(runsData.runs ?? []);
+        }
+      } catch { /* non-critical */ }
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Unexpected request error.");
     } finally {
@@ -478,6 +674,14 @@ export default function Home() {
 
           <div className="rounded-[30px] border border-white/70 bg-[var(--surface-strong)] p-5 shadow-[0_18px_48px_rgba(51,38,21,0.08)]">
             <div className="space-y-5">
+
+              {/* Past runs dropdown — hidden when MongoDB is not configured */}
+              <PastRunsDropdown
+                runs={pastRuns}
+                selectedId={selectedRunId}
+                loading={loadingRuns}
+                onSelect={loadRun}
+              />
 
               {/* Subreddit multiselect dropdown */}
               <div className="space-y-2">
@@ -665,7 +869,34 @@ export default function Home() {
         </section>
       ) : null}
 
-      {result ? (
+      {loadingRunDetail ? (
+        <section className="glass-panel mt-6 rounded-[28px] p-6 text-sm leading-7 text-slate-600">
+          Loading past run…
+        </section>
+      ) : loadedRun ? (
+        <>
+          <LoadedRunBanner
+            run={loadedRun}
+            onDismiss={() => { setLoadedRun(null); setSelectedRunId(null); }}
+            onDelete={() => deleteRun(loadedRun._id)}
+          />
+          <section className="mt-6 space-y-6">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="font-mono text-[0.72rem] uppercase tracking-[0.24em] text-slate-500">Results</p>
+                <h2 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">
+                  r/{loadedRun.subreddits.join(" + ")} produced {loadedRun.ideas.length} validated ideas
+                </h2>
+              </div>
+            </div>
+            <div className="grid gap-5 xl:grid-cols-2">
+              {loadedRun.ideas.map((idea) => (
+                <IdeaCard key={`${idea.idea_name}-${idea.problem}`} idea={idea} />
+              ))}
+            </div>
+          </section>
+        </>
+      ) : result ? (
         <section className="mt-6 space-y-6">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>

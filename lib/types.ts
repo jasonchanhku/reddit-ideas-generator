@@ -43,3 +43,15 @@ export interface AnalyzeIdeasResponse {
   source: StructuredRedditData;
   ideas: SaasIdea[];
 }
+
+export interface RunSummary {
+  _id: string;
+  subreddits: string[];
+  focusModes: FocusMode[];
+  timeRange: TimeRange | null;
+  analyzed_at: string;
+}
+
+export interface RunDocument extends RunSummary {
+  ideas: SaasIdea[];
+}

@@ -4,7 +4,7 @@ import { z } from "zod";
 
 import { getServerEnv } from "@/lib/env";
 import { getDb } from "@/lib/db";
-import type { FocusMode, SaasIdea, StructuredRedditData } from "@/lib/types";
+import type { FocusMode, SaasIdea, StructuredRedditData, TimeRange } from "@/lib/types";
 
 const AI_POST_LIMIT = 8;
 const AI_COMMENT_LIMIT = 3;
@@ -263,6 +263,7 @@ async function maybeStoreIdeas(
   collection: string,
   subreddits: string[],
   focusModes: FocusMode[],
+  timeRange: TimeRange,
   ideas: SaasIdea[],
 ): Promise<void> {
   if (!mongodbUri) {
@@ -281,7 +282,7 @@ async function maybeStoreIdeas(
     const db = await getDb(mongodbUri, dbName);
     const analyzed_at = new Date().toISOString();
 
-    await db.collection(collection).insertOne({ subreddits, focusModes, ideas, analyzed_at });
+    await db.collection(collection).insertOne({ subreddits, focusModes, timeRange, ideas, analyzed_at });
 
     console.log(`   ✅ Successfully stored ${ideas.length} ideas`);
   } catch (error) {
@@ -290,7 +291,7 @@ async function maybeStoreIdeas(
   }
 }
 
-export async function analyzeWithAI(data: StructuredRedditData, focusModes: FocusMode[] = ["pain-points"]): Promise<SaasIdea[]> {
+export async function analyzeWithAI(data: StructuredRedditData, focusModes: FocusMode[] = ["pain-points"], timeRange: TimeRange = "week"): Promise<SaasIdea[]> {
   console.log(`\n\n${"=".repeat(80)}`);
   console.log(`🤖 [AI ANALYSIS] Starting idea generation...`);
   console.log(`   Subreddits: ${data.subreddits.join(", ")}`);
@@ -353,7 +354,7 @@ export async function analyzeWithAI(data: StructuredRedditData, focusModes: Focu
   console.log(`   Avg Score: ${(merged.reduce((sum, i) => sum + i.score, 0) / merged.length).toFixed(2)}`);
   console.log(`${"=".repeat(80)}\n`);
 
-  await maybeStoreIdeas(env.mongodbUri, env.mongodbDbName, env.mongodbCollection, data.subreddits, focusModes, merged);
+  await maybeStoreIdeas(env.mongodbUri, env.mongodbDbName, env.mongodbCollection, data.subreddits, focusModes, timeRange, merged);
 
   return merged;
 }

@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__atlassian__getAccessibleAtlassianResources",
+      "mcp__atlassian__getVisibleJiraProjects",
+      "mcp__atlassian__createJiraIssue",
+      "mcp__atlassian__editJiraIssue",
+      "mcp__atlassian__searchJiraIssuesUsingJql",
+      "Bash(node *)"
+    ]
+  },
+  "enabledPlugins": {
+    "superpowers@claude-plugins-official": false
+  }
+}
