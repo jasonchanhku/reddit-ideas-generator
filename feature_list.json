@@ -1,0 +1,82 @@
+{
+  "_note": "This file is a structural index only. Live issue status, assignments, and progress are tracked in JIRA. Agents must query JIRA MCP (project KAN at https://jasonchanhku.atlassian.net) for current status rather than relying on this file.",
+  "jira": {
+    "cloudId": "d63c5661-5d76-42bf-835a-347d238a2a32",
+    "project": "KAN",
+    "url": "https://jasonchanhku.atlassian.net"
+  },
+  "features": [
+    {
+      "id": "KAN-1",
+      "jira_epic": "KAN-1",
+      "name": "Multi-Page App Architecture & Navigation",
+      "description": "Migrate from single-page to multi-page Next.js app with top-level navigation. Current app/page.tsx becomes /discover. Add root redirect, shared nav bar with Discover/Research/PoC links.",
+      "dependencies": [],
+      "stories": ["KAN-7", "KAN-8"],
+      "subtasks": ["KAN-42", "KAN-43"],
+      "status": "see-jira",
+      "implementation_notes": "Move app/page.tsx → app/discover/page.tsx. Add root redirect / → /discover. Create components/TopNav.tsx with usePathname active-link highlighting. Update app/layout.tsx with shared <TopNav>.",
+      "done_criteria": "/ redirects to /discover; nav renders on all pages; active link highlighted; existing discover functionality unchanged; npm run build passes"
+    },
+    {
+      "id": "KAN-2",
+      "jira_epic": "KAN-2",
+      "name": "Favourites System",
+      "description": "Heart icon on each idea card to favourite/unfavourite. Toggle persisted to MongoDB via PATCH /api/ideas/:id/favourite. Ideas need idea_id (UUID), is_favourite, and stage fields added to SaasIdea schema.",
+      "dependencies": ["KAN-1"],
+      "stories": ["KAN-9", "KAN-10"],
+      "subtasks": ["KAN-44", "KAN-45", "KAN-46"],
+      "status": "see-jira",
+      "implementation_notes": "Add idea_id (uuid), is_favourite (bool, default false), stage ('discovered'|'favourited'|'researched'|'poc') to SaasIdea in lib/types.ts. UUID generated at write time in analyzeWithAI. Create PATCH /api/ideas/[id]/favourite. Add heart toggle to IdeaCard with optimistic UI.",
+      "done_criteria": "Heart icon toggles on Discover page; state persists across page reloads; MongoDB document updated; is_favourite visible in historical run views; npm run build passes"
+    },
+    {
+      "id": "KAN-3",
+      "jira_epic": "KAN-3",
+      "name": "Research Page & Idea Management",
+      "description": "Dedicated /research page showing all favourited ideas. Click idea card → /research/[id] full detail view. Unfavourite from Research page. Requires GET /api/ideas?stage=favourited endpoint.",
+      "dependencies": ["KAN-2"],
+      "stories": ["KAN-11", "KAN-12", "KAN-13"],
+      "subtasks": ["KAN-47", "KAN-48", "KAN-49"],
+      "status": "see-jira",
+      "implementation_notes": "Create GET /api/ideas with stage query param (returns full docs from MongoDB). Create app/research/page.tsx card grid. Create app/research/[id]/page.tsx expanded view showing all SaasIdea fields.",
+      "done_criteria": "/research shows all favourited ideas; unfavourite removes card; /research/[id] shows all idea fields; npm run build passes"
+    },
+    {
+      "id": "KAN-4",
+      "jira_epic": "KAN-4",
+      "name": "Deep Research Feature",
+      "description": "Perform Research button on /research/[id] triggers SERPH web search + AI synthesis. Results persisted to MongoDB under research_results field. stage advances to 'researched'.",
+      "dependencies": ["KAN-3"],
+      "stories": ["KAN-14", "KAN-15"],
+      "subtasks": ["KAN-50", "KAN-51", "KAN-52", "KAN-53"],
+      "status": "see-jira",
+      "implementation_notes": "Add SERPH_API_KEY to lib/env.ts (optional, graceful degradation). Create lib/research.ts with searchWeb() via SERPH API. Add runResearchAnalysis() to lib/ai.ts. Create POST /api/ideas/[id]/research. Update /research/[id] with Perform Research button.",
+      "done_criteria": "Research button triggers web search + AI synthesis; results displayed and persisted; stage updates to 'researched'; button disabled when SERPH_API_KEY absent; npm run build passes"
+    },
+    {
+      "id": "KAN-5",
+      "jira_epic": "KAN-5",
+      "name": "PoC Page & PRD Generation",
+      "description": "Move to PoC button on researched ideas. /poc page lists all poc-stage ideas. /poc/[id] expanded view with Generate PRD button → downloadable Markdown file.",
+      "dependencies": ["KAN-4"],
+      "stories": ["KAN-16", "KAN-17", "KAN-18", "KAN-19"],
+      "subtasks": ["KAN-54", "KAN-55", "KAN-56", "KAN-57", "KAN-58"],
+      "status": "see-jira",
+      "implementation_notes": "Create POST /api/ideas/[id]/move-to-poc (validates stage='researched', sets stage='poc'). Create app/poc/page.tsx grid. Create app/poc/[id]/page.tsx with PRD generation. Add generatePRD() in lib/ai.ts. POST /api/ideas/[id]/generate-prd. Browser download of <kebab-idea-name>-prd.md.",
+      "done_criteria": "Move to PoC only for researched ideas; /poc page shows poc-stage ideas; Generate PRD produces downloadable Markdown; npm run build passes"
+    },
+    {
+      "id": "KAN-6",
+      "jira_epic": "KAN-6",
+      "name": "UI Mockup Generation",
+      "description": "Generate Mockups button on /poc/[id] triggers DALL-E image generation. Images stored in MongoDB under mockup_images field. Per-image download and Download All ZIP.",
+      "dependencies": ["KAN-5"],
+      "stories": ["KAN-20", "KAN-21"],
+      "subtasks": ["KAN-59", "KAN-60", "KAN-61"],
+      "status": "see-jira",
+      "implementation_notes": "Add mockup_images?: string[] to SaasIdea in lib/types.ts. Create POST /api/ideas/[id]/generate-mockups using OpenAI DALL-E. Persist image URLs to MongoDB. Add responsive image gallery to /poc/[id] with per-image download and Download All ZIP.",
+      "done_criteria": "Generate Mockups button produces images; gallery renders; per-image and bulk download work; URLs persisted across reloads; npm run build passes"
+    }
+  ]
+}

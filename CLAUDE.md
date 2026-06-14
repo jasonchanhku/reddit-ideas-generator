@@ -8,12 +8,50 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Users can scrape 1–5 subreddits simultaneously, control the time range (week/month/year/all), and select one or more focus modes that shift the AI analysis angle. Each selected focus mode runs a parallel AI call; results are merged and deduplicated by idea name.
 
+## Startup Workflow
+
+1. Read `feature_list.json` — understand the epic structure, dependencies, and done criteria.
+2. **Query JIRA for live status** — use the Atlassian MCP tool to fetch current issue status from project `KAN` (cloudId: `d63c5661-5d76-42bf-835a-347d238a2a32`, site: `https://jasonchanhku.atlassian.net`). JQL: `project = KAN ORDER BY created ASC`. Pick the first epic whose JIRA status is not Done, respecting the dependency order in `feature_list.json`.
+3. Read `progress.md` — review last-known state and any blockers.
+4. Read `session-handoff.md` — pick up the recommended next step.
+5. Run `./init.sh` (or `npm install && npm run lint && npm run build`) before making any changes.
+6. Work on **one feature at a time**. Do not start a new feature until the active one passes verification.
+
+> **Feature status is owned by JIRA.** `feature_list.json` is a structural index (dependencies, done criteria, implementation notes) — not a status tracker. Always check JIRA for what is actually To Do / In Progress / Done.
+
+## Definition of Done
+
+A feature is done when **all** of the following are true:
+
+- `npm run build` passes with no errors
+- `npm run lint` passes with no warnings
+- The `done_criteria` in `feature_list.json` for the feature are met (manually verified)
+- The feature's `status` is updated to `"done"` and `evidence` is filled in `feature_list.json`
+- `progress.md` and `session-handoff.md` are updated before the session ends
+
+## Scope Boundaries
+
+- **One active feature at a time.** Never implement code for a future feature while working on the current one.
+- **No unrequested abstractions.** Only build what the current feature's `done_criteria` require.
+- **State files are authoritative.** If `feature_list.json` says a feature is `not-started`, do not assume it is done.
+- To claim a feature complete, evidence must be recorded in `feature_list.json` under `"evidence"`.
+
+## End of Session
+
+1. Run `npm run build` and `npm run lint` — both must pass.
+2. Update the active feature's `status` and `evidence` in `feature_list.json`.
+3. Update `progress.md` with what was done and what is next.
+4. Update `session-handoff.md` with the recommended next step.
+5. Commit any changes with a descriptive message referencing the JIRA ticket (e.g. `KAN-42: move discover route`).
+
 ## Commands
 
 ```bash
 npm run dev      # Start dev server at localhost:3000
 npm run build    # Production build
 npm run lint     # Run ESLint
+npx tsc --noEmit # Type-check without building
+./init.sh        # Full baseline check (install + lint + build)
 ```
 
 No test framework is configured.
