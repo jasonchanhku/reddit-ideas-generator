@@ -6,7 +6,8 @@
       "mcp__atlassian__createJiraIssue",
       "mcp__atlassian__editJiraIssue",
       "mcp__atlassian__searchJiraIssuesUsingJql",
-      "Bash(node *)"
+      "Bash(node *)",
+      "mcp__atlassian__transitionJiraIssue"
     ]
   },
   "enabledPlugins": {

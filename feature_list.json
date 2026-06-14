@@ -16,7 +16,8 @@
       "subtasks": ["KAN-42", "KAN-43"],
       "status": "see-jira",
       "implementation_notes": "Move app/page.tsx → app/discover/page.tsx. Add root redirect / → /discover. Create components/TopNav.tsx with usePathname active-link highlighting. Update app/layout.tsx with shared <TopNav>.",
-      "done_criteria": "/ redirects to /discover; nav renders on all pages; active link highlighted; existing discover functionality unchanged; npm run build passes"
+      "done_criteria": "/ redirects to /discover; nav renders on all pages; active link highlighted; existing discover functionality unchanged; npm run build passes",
+      "evidence": "commit 0d0c587 on feature/KAN-1-KAN-2 (2026-06-14). app/page.tsx replaced with redirect('/discover'). app/discover/page.tsx created (full generator UI). app/components/TopNav.tsx created ('use client', usePathname active state). app/layout.tsx updated with <TopNav> + pt-14. app/research/page.tsx and app/poc/page.tsx stub pages added. npm run build ✓, npm run lint ✓."
     },
     {
       "id": "KAN-2",
@@ -28,7 +29,8 @@
       "subtasks": ["KAN-44", "KAN-45", "KAN-46"],
       "status": "see-jira",
       "implementation_notes": "Add idea_id (uuid), is_favourite (bool, default false), stage ('discovered'|'favourited'|'researched'|'poc') to SaasIdea in lib/types.ts. UUID generated at write time in analyzeWithAI. Create PATCH /api/ideas/[id]/favourite. Add heart toggle to IdeaCard with optimistic UI.",
-      "done_criteria": "Heart icon toggles on Discover page; state persists across page reloads; MongoDB document updated; is_favourite visible in historical run views; npm run build passes"
+      "done_criteria": "Heart icon toggles on Discover page; state persists across page reloads; MongoDB document updated; is_favourite visible in historical run views; npm run build passes",
+      "evidence": "commit 0d0c587 on feature/KAN-1-KAN-2 (2026-06-14). lib/types.ts extended with idea_id?, is_favourite?, stage? on SaasIdea and runId? on AnalyzeIdeasResponse. lib/ai.ts stamps each persisted idea with randomUUID() and returns runId from insertOne. app/api/ideas/[id]/favourite/route.ts created (PATCH, MongoDB positional $ operator). IdeaCard in app/discover/page.tsx updated with optimistic heart toggle; runId threaded from Home state. npm run build ✓, npm run lint ✓."
     },
     {
       "id": "KAN-3",
