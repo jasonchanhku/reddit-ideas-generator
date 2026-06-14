@@ -33,7 +33,14 @@ const EXAMPLE_SUBREDDITS = [
   "indiehackers",
   "buildinpublic",
   "lovable",
-  "AiAutomations"
+  "AiAutomations",
+  "B2BSaaS",
+  "StartupSoloFounder",
+  "n8n_ai_agents",
+  "n8n",
+  "n8nbusinessautomation",
+  "AppBuilding",
+  "aisolobusinesses"
 ];
 
 const TIME_RANGE_OPTIONS: { value: TimeRange; label: string }[] = [
