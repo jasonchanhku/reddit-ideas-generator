@@ -1,3 +1,5 @@
+import { randomUUID } from "crypto";
+
 import OpenAI from "openai";
 import { jsonrepair } from "jsonrepair";
 import { z } from "zod";
@@ -265,15 +267,15 @@ async function maybeStoreIdeas(
   focusModes: FocusMode[],
   timeRange: TimeRange,
   ideas: SaasIdea[],
-): Promise<void> {
+): Promise<{ ideas: SaasIdea[]; runId: string | null }> {
   if (!mongodbUri) {
     console.log(`\n💾 [STORAGE] No MONGODB_URI configured, skipping persistence`);
-    return;
+    return { ideas, runId: null };
   }
 
   if (ideas.length === 0) {
     console.log(`\n💾 [STORAGE] No ideas to store`);
-    return;
+    return { ideas, runId: null };
   }
 
   console.log(`\n💾 [STORAGE] Persisting ${ideas.length} ideas to ${dbName}.${collection}`);
@@ -282,16 +284,35 @@ async function maybeStoreIdeas(
     const db = await getDb(mongodbUri, dbName);
     const analyzed_at = new Date().toISOString();
 
-    await db.collection(collection).insertOne({ subreddits, focusModes, timeRange, ideas, analyzed_at });
+    const ideasWithIds = ideas.map((idea) => ({
+      ...idea,
+      idea_id: randomUUID(),
+      is_favourite: false,
+      stage: "discovery",
+    }));
 
-    console.log(`   ✅ Successfully stored ${ideas.length} ideas`);
+    const result = await db.collection(collection).insertOne({
+      subreddits,
+      focusModes,
+      timeRange,
+      ideas: ideasWithIds,
+      analyzed_at,
+    });
+
+    console.log(`   ✅ Successfully stored ${ideasWithIds.length} ideas`);
+    return { ideas: ideasWithIds, runId: result.insertedId.toString() };
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : "Unknown error";
     console.error(`   ⚠️  Storage failed (non-blocking): ${errorMsg}`);
+    return { ideas, runId: null };
   }
 }
 
-export async function analyzeWithAI(data: StructuredRedditData, focusModes: FocusMode[] = ["pain-points"], timeRange: TimeRange = "week"): Promise<SaasIdea[]> {
+export async function analyzeWithAI(
+  data: StructuredRedditData,
+  focusModes: FocusMode[] = ["pain-points"],
+  timeRange: TimeRange = "week",
+): Promise<{ ideas: SaasIdea[]; runId: string | null }> {
   console.log(`\n\n${"=".repeat(80)}`);
   console.log(`🤖 [AI ANALYSIS] Starting idea generation...`);
   console.log(`   Subreddits: ${data.subreddits.join(", ")}`);
@@ -354,7 +375,15 @@ export async function analyzeWithAI(data: StructuredRedditData, focusModes: Focu
   console.log(`   Avg Score: ${(merged.reduce((sum, i) => sum + i.score, 0) / merged.length).toFixed(2)}`);
   console.log(`${"=".repeat(80)}\n`);
 
-  await maybeStoreIdeas(env.mongodbUri, env.mongodbDbName, env.mongodbCollection, data.subreddits, focusModes, timeRange, merged);
+  const { ideas: finalIdeas, runId } = await maybeStoreIdeas(
+    env.mongodbUri,
+    env.mongodbDbName,
+    env.mongodbCollection,
+    data.subreddits,
+    focusModes,
+    timeRange,
+    merged,
+  );
 
-  return merged;
+  return { ideas: finalIdeas, runId };
 }

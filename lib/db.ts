@@ -5,7 +5,6 @@ import { MongoClient, Db } from "mongodb";
 setServers(["1.1.1.1", "8.8.8.8"]);
 
 declare global {
-  // eslint-disable-next-line no-var
   var _mongoClientPromise: Promise<MongoClient> | undefined;
 }
 

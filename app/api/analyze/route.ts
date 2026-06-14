@@ -49,13 +49,14 @@ export async function POST(request: Request) {
     const source = await scrapeMultipleSubreddits(body.subreddits, body.timeRange);
     console.log(`[API] Scraped ${source.posts.length} posts from ${source.subreddits.length} subreddit(s)`);
 
-    const ideas = await analyzeWithAI(source, body.focusModes, body.timeRange);
+    const { ideas, runId } = await analyzeWithAI(source, body.focusModes, body.timeRange);
     console.log(`[API] Generated ${ideas.length} ideas`);
 
     return NextResponse.json({
       subreddits: source.subreddits,
       source,
       ideas,
+      runId,
     });
   } catch (error) {
     console.error("[API] Error occurred:", error);
