@@ -7,7 +7,10 @@
       "mcp__atlassian__editJiraIssue",
       "mcp__atlassian__searchJiraIssuesUsingJql",
       "Bash(node *)",
-      "mcp__atlassian__transitionJiraIssue"
+      "mcp__atlassian__transitionJiraIssue",
+      "Bash(npm run *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
     ]
   },
   "enabledPlugins": {
