@@ -42,7 +42,8 @@
       "subtasks": ["KAN-47", "KAN-48", "KAN-49"],
       "status": "see-jira",
       "implementation_notes": "Create GET /api/ideas with stage query param (returns full docs from MongoDB). Create app/research/page.tsx card grid. Create app/research/[id]/page.tsx expanded view showing all SaasIdea fields.",
-      "done_criteria": "/research shows all favourited ideas; unfavourite removes card; /research/[id] shows all idea fields; npm run build passes"
+      "done_criteria": "/research shows all favourited ideas; unfavourite removes card; /research/[id] shows all idea fields; npm run build passes",
+      "evidence": "commit 5d31300 on feature/KAN-3 (2026-07-18). GET /api/ideas?is_favourite=true via MongoDB $unwind aggregation in app/api/ideas/route.ts. GET /api/ideas/[id] by UUID in app/api/ideas/[id]/route.ts. app/research/page.tsx: client-side card grid with unfavourite (removes card on success). app/research/[id]/page.tsx: full detail view, all SaasIdea fields, disabled Perform Research button (KAN-4 placeholder), Move to PoC button shown only when stage==='researched'. lib/types.ts: added run_id? to SaasIdea. npm run build ✓, npm run lint ✓."
     },
     {
       "id": "KAN-4",
