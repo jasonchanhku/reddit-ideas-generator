@@ -40,7 +40,9 @@ const EXAMPLE_SUBREDDITS = [
   "n8n",
   "n8nbusinessautomation",
   "AppBuilding",
-  "aisolobusinesses"
+  "aisolobusinesses",
+  "MakeMoneyHacks",
+  "Polymarket"
 ];
 
 const TIME_RANGE_OPTIONS: { value: TimeRange; label: string }[] = [
