@@ -20,6 +20,32 @@ export interface StructuredRedditData {
   posts: RedditPost[];
 }
 
+export interface ResearchSource {
+  title: string;
+  url: string;
+}
+
+export interface CompetitorProfile {
+  name: string;
+  strengths: string;
+  pricing: string;
+  gap: string;
+}
+
+export interface ResearchResults {
+  market_size: string;
+  niche_size: string;
+  competitors: CompetitorProfile[];
+  competitive_gap: string;
+  adjacent_trends: string;
+  beachhead_sizing: string;
+  key_risks: string[];
+  monetisation_angles: string[];
+  summary: string;
+  sources: ResearchSource[];
+  researched_at: string;
+}
+
 export interface SaasIdea {
   idea_name: string;
   problem: string;
@@ -40,6 +66,7 @@ export interface SaasIdea {
   is_favourite?: boolean;
   stage?: string;
   run_id?: string;
+  research_results?: ResearchResults;
 }
 
 export interface AnalyzeIdeasResponse {

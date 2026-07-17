@@ -6,7 +6,8 @@ import { z } from "zod";
 
 import { getServerEnv } from "@/lib/env";
 import { getDb } from "@/lib/db";
-import type { FocusMode, SaasIdea, StructuredRedditData, TimeRange } from "@/lib/types";
+import type { ResearchSearch } from "@/lib/research";
+import type { FocusMode, ResearchResults, SaasIdea, StructuredRedditData, TimeRange } from "@/lib/types";
 
 const AI_POST_LIMIT = 8;
 const AI_COMMENT_LIMIT = 3;
@@ -174,6 +175,75 @@ Score each idea 1–10 weighted toward category-defining potential and timing ad
 ${SHARED_OUTPUT_BLOCK}`,
 };
 
+const researchResultsSchema = z.object({
+  market_size: z.string().trim().min(1),
+  niche_size: z.string().trim().min(1),
+  competitors: z
+    .array(
+      z.object({
+        name: z.string().trim().min(1),
+        strengths: coercedString,
+        pricing: coercedString,
+        gap: coercedString,
+      }),
+    )
+    .min(1),
+  competitive_gap: z.string().trim().min(1),
+  adjacent_trends: z.string().trim().min(1),
+  beachhead_sizing: z.string().trim().min(1),
+  key_risks: z.array(coercedString).min(1),
+  monetisation_angles: z.array(coercedString).min(1),
+  summary: z.string().trim().min(1),
+  sources: z
+    .array(
+      z.object({
+        title: z.string().trim().min(1),
+        url: z.string().trim().url(),
+      }),
+    )
+    .min(1),
+});
+
+const RESEARCH_SYSTEM_PROMPT = `You are a market research analyst producing an investment-grade brief for a SaaS idea.
+
+You are given: (1) the idea's data mined from Reddit, and (2) fresh web search results (title, url, snippet per result).
+
+Synthesise BOTH into a structured research brief. Ground every claim in the web snippets where possible.
+
+REQUIREMENTS:
+
+- market_size: total market size and growth for the relevant category (TAM, CAGR). Market figures vary by research firm — present them as directional midpoints, never false precision (e.g. "roughly $4–6B growing ~12% CAGR").
+- niche_size: the specific sub-segment / niche size and momentum this idea targets.
+- competitors: name REAL competitors found in the search results or idea data. For each: what they are good at (strengths), their pricing, and where their gap is.
+- competitive_gap: the single most exploitable gap across the landscape.
+- adjacent_trends: any trend the idea rides — new hardware, platform shift, regulation, demographic change.
+- beachhead_sizing: size the chosen beachhead — how many reachable people, willingness-to-pay signals.
+- key_risks: the 2-5 biggest risks to this idea.
+- monetisation_angles: 2-5 concrete monetisation approaches with pricing logic.
+- summary: a 3-5 sentence synthesis verdict on the idea's validation status.
+- sources: cite ONLY urls that appear in the provided search results. Include every source you relied on.
+
+OUTPUT STRICT JSON:
+
+{
+  "market_size": "",
+  "niche_size": "",
+  "competitors": [
+    { "name": "", "strengths": "", "pricing": "", "gap": "" }
+  ],
+  "competitive_gap": "",
+  "adjacent_trends": "",
+  "beachhead_sizing": "",
+  "key_risks": [],
+  "monetisation_angles": [],
+  "summary": "",
+  "sources": [
+    { "title": "", "url": "https://..." }
+  ]
+}
+
+Do NOT return text outside JSON.`;
+
 function parseJsonArray(raw: string): SaasIdea[] {
   const withoutCodeFence = raw.replace(/```json|```/gi, "").trim();
   const start = withoutCodeFence.indexOf("[");
@@ -198,6 +268,73 @@ function parseJsonArray(raw: string): SaasIdea[] {
       );
     }
   }
+}
+
+function parseResearchObject(raw: string): z.infer<typeof researchResultsSchema> {
+  const withoutCodeFence = raw.replace(/```json|```/gi, "").trim();
+  const start = withoutCodeFence.indexOf("{");
+  const end = withoutCodeFence.lastIndexOf("}");
+
+  if (start === -1 || end === -1 || end < start) {
+    throw new Error("AI research response did not include a JSON object.");
+  }
+
+  const candidate = withoutCodeFence.slice(start, end + 1);
+
+  try {
+    return researchResultsSchema.parse(JSON.parse(candidate));
+  } catch {
+    try {
+      return researchResultsSchema.parse(JSON.parse(jsonrepair(candidate)));
+    } catch (repairError) {
+      throw new Error(
+        repairError instanceof Error
+          ? `Failed to parse AI research JSON: ${repairError.message}`
+          : "Failed to parse AI research JSON.",
+      );
+    }
+  }
+}
+
+export async function runResearchAnalysis(
+  idea: SaasIdea,
+  searches: ResearchSearch[],
+): Promise<ResearchResults> {
+  const env = getServerEnv();
+
+  const client = new OpenAI({
+    apiKey: env.openaiApiKey,
+    baseURL: env.openaiBaseUrl,
+    timeout: env.openaiTimeoutMs,
+  });
+
+  // Strip fields the model doesn't need (and any previous research run)
+  const { research_results: _previous, run_id: _runId, ...ideaForPrompt } = idea;
+  void _previous;
+  void _runId;
+
+  const totalResults = searches.reduce((sum, s) => sum + s.results.length, 0);
+  console.log(`\n🧪 [RESEARCH AI] Synthesising "${idea.idea_name}" from ${totalResults} search results | Model: ${env.openaiModel}`);
+
+  const requestStart = Date.now();
+  const response = await client.chat.completions.create({
+    model: env.openaiModel,
+    temperature: 0.2,
+    max_tokens: 3000,
+    messages: [
+      { role: "system", content: RESEARCH_SYSTEM_PROMPT },
+      { role: "user", content: JSON.stringify({ idea: ideaForPrompt, web_searches: searches }) },
+    ],
+  });
+
+  console.log(`   ⏱️  [RESEARCH AI] Response: ${Date.now() - requestStart}ms`);
+
+  const rawContent = response.choices[0]?.message?.content ?? "";
+  const parsed = parseResearchObject(rawContent);
+
+  console.log(`   ✅ [RESEARCH AI] Parsed research: ${parsed.competitors.length} competitors, ${parsed.sources.length} sources`);
+
+  return { ...parsed, researched_at: new Date().toISOString() };
 }
 
 function compactStructuredData(data: StructuredRedditData): StructuredRedditData {
