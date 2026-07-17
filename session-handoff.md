@@ -3,51 +3,58 @@
 ## Current Objective
 
 - **Goal:** Evolve Validly from a single-page Reddit idea scraper into a multi-stage SaaS validation pipeline (Discover → Research → PoC)
-- **Current status:** Harness created; roadmap mapped from JIRA project KAN; all 6 epics are To Do
-- **Branch:** `feature/add-harness-engineering` (harness files only; merge to main when done)
-- **Next feature:** KAN-1 — Multi-Page App Architecture & Navigation
+- **Current status:** KAN-1 and KAN-2 Done. Next epic: KAN-3 — Research Page & Idea Management
+- **Branch:** `feature/KAN-1-KAN-2` — merge to main, then create `feature/KAN-3` for next epic
 
 ## Completed This Session
 
-- [x] Explored project structure and architecture
-- [x] Pulled all 41 JIRA issues from project KAN
-- [x] Created harness files: `feature_list.json`, `progress.md`, `session-handoff.md`, `init.sh`
-- [x] Populated `feature_list.json` with 6 real epics derived from JIRA, with stories, subtasks, done criteria, and implementation notes
+- [x] KAN-1: Multi-page architecture — /discover route, root redirect, TopNav (Discover/Research/PoC), stub pages
+- [x] KAN-2: Favourites system — idea_id stamping, PATCH /api/ideas/[id]/favourite, heart icon with optimistic UI
+- [x] All JIRA issues transitioned to Done: KAN-1, KAN-2, KAN-7, KAN-8, KAN-9, KAN-10, KAN-42, KAN-43, KAN-44, KAN-45, KAN-46
+- [x] feature_list.json updated with evidence for KAN-1 and KAN-2
+- [x] Harness validated: 100/100 across all five subsystems
+- [x] npm run build ✓, npm run lint ✓
 
 ## Verification Evidence
 
 | Check | Command | Result |
 |-------|---------|--------|
-| Lint | `npm run lint` | Run before each session |
-| Build | `npm run build` | Run before claiming any feature done |
-| Type check | `npx tsc --noEmit` | Run after any lib/types.ts change |
+| Lint | `npm run lint` | ✓ 0 errors, 0 warnings |
+| Build | `npm run build` | ✓ All 9 routes compiled |
+| JIRA | KAN-1, KAN-2 + all stories/subtasks | ✓ Transitioned to Done |
 
-## Decisions Made
+## Architecture Notes for KAN-3
 
-- Harness files live at project root (not in `.claude/`) so they are visible to any agent
-- `feature_list.json` uses JIRA epic IDs (`KAN-1` … `KAN-6`) as feature IDs for traceability
-- Each feature entry includes `stories`, `subtasks`, `implementation_notes`, and `done_criteria`
+KAN-3 requires ideas to be queryable by `stage`. Current state after KAN-2:
+- Each persisted idea has `idea_id` (UUID), `is_favourite` (bool), `stage` ("discovery")
+- Favouriting flips `is_favourite` but does **not** change `stage` — KAN-3 will introduce stage promotion
+
+KAN-3 needs:
+- `GET /api/ideas?is_favourite=true` (or `?stage=favourited`) — queries the embedded `ideas` array across all run documents; may need MongoDB `$unwind` + aggregation
+- `app/research/page.tsx` — replace Coming Soon stub with a card grid of favourited ideas
+- `app/research/[id]/page.tsx` — full detail view of a single idea (all SaasIdea fields)
+- Unfavourite action from Research page (reuse the existing PATCH endpoint)
 
 ## Blockers / Risks
 
-- None blocking KAN-1
-- KAN-4 requires `SERPH_API_KEY` (not yet procured); add to `.env.local` and `lib/env.ts` when starting that epic
-- All features from KAN-2 onward require `MONGODB_URI` to be set in `.env.local`
+- `SERPH_API_KEY` required for KAN-4 — not yet configured; graceful degradation planned
+- `MONGODB_URI` must be set for KAN-3 to query favourited ideas
+- Legacy runs (pre-KAN-2) lack `idea_id`/`is_favourite` — Research page should handle this gracefully (filter to documents that have the fields)
 
 ## Next Session Startup
 
 1. Read `CLAUDE.md` for project overview and architecture.
-2. Read `feature_list.json` for epic structure, dependencies, and done criteria.
-3. **Query JIRA** (`project = KAN ORDER BY created ASC`) via Atlassian MCP to find the first epic not yet Done — that is the active feature.
-4. Read `progress.md` for last-known state and any blockers.
-5. Run `./init.sh` (installs deps, lints, builds) to confirm clean baseline before editing.
-6. Implement ONE feature only. When done, transition the relevant JIRA epic and subtasks to Done via MCP.
-7. Update `progress.md` and this file before ending the session.
+2. Read `feature_list.json` for KAN-3 epic structure, dependencies, and done criteria.
+3. **Query JIRA** (`project = KAN ORDER BY created ASC`) via Atlassian MCP — confirm KAN-3 is the first non-Done epic.
+4. Read `progress.md` for current state and key files.
+5. Run `./init.sh` to confirm clean baseline before editing.
+6. Implement KAN-3 only. Do not begin KAN-4 work.
 
 ## Recommended Next Step
 
-**Start KAN-1, subtask KAN-42:**
-- Move `app/page.tsx` → `app/discover/page.tsx`
-- Add `app/page.tsx` root redirect (`redirect('/discover')` via Next.js)
-- Update any internal `href="/"` references to `href="/discover"`
-- Then do KAN-43: create `components/TopNav.tsx` with Discover/Research/PoC links and `usePathname` active highlighting; add `<TopNav>` to `app/layout.tsx`
+**Merge `feature/KAN-1-KAN-2` to `main`, then start `feature/KAN-3`.**
+
+First task in KAN-3:
+- Fetch KAN-3 stories and subtasks from JIRA via Atlassian MCP to confirm scope
+- Design `GET /api/ideas` aggregation query — MongoDB `$unwind` over all run documents to return ideas matching `is_favourite: true`
+- Replace `app/research/page.tsx` stub with a card grid consuming that endpoint

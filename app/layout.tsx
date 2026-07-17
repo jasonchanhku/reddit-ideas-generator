@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { IBM_Plex_Mono, Manrope } from "next/font/google";
 import "./globals.css";
+import TopNav from "./components/TopNav";
 
 const manrope = Manrope({
   variable: "--font-manrope",
@@ -28,7 +29,10 @@ export default function RootLayout({
       lang="en"
       className={`${manrope.variable} ${plexMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col pt-14">
+        <TopNav />
+        {children}
+      </body>
     </html>
   );
 }

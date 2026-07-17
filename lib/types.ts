@@ -36,12 +36,16 @@ export interface SaasIdea {
   verdict: "Weak" | "Decent" | "Strong";
   source_threads: SourceThread[];
   focus_mode?: FocusMode;
+  idea_id?: string;
+  is_favourite?: boolean;
+  stage?: string;
 }
 
 export interface AnalyzeIdeasResponse {
   subreddits: string[];
   source: StructuredRedditData;
   ideas: SaasIdea[];
+  runId?: string;
 }
 
 export interface RunSummary {
