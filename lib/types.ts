@@ -39,6 +39,7 @@ export interface SaasIdea {
   idea_id?: string;
   is_favourite?: boolean;
   stage?: string;
+  run_id?: string;
 }
 
 export interface AnalyzeIdeasResponse {
