@@ -42,7 +42,10 @@ export async function GET(
       return NextResponse.json({ error: "Idea not found." }, { status: 404 });
     }
 
-    return NextResponse.json({ idea: result[0] });
+    return NextResponse.json({
+      idea: result[0],
+      research_enabled: Boolean(env.serphApiKey),
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to fetch idea.";
     return NextResponse.json({ error: message }, { status: 500 });

@@ -15,6 +15,7 @@ const serverEnvSchema = z.object({
   OPENAI_BASE_URL: optionalUrl,
   OPENAI_MODEL: z.string().trim().optional(),
   OPENAI_TIMEOUT_MS: z.coerce.number().int().positive().optional(),
+  SERPH_API_KEY: z.string().trim().optional(),
   MONGODB_URI: z.string().trim().optional(),
   MONGODB_DB_NAME: z.string().trim().optional(),
   MONGODB_COLLECTION: z.string().trim().optional(),
@@ -32,6 +33,7 @@ export type ServerEnv = {
   openaiBaseUrl: string;
   openaiModel: string;
   openaiTimeoutMs: number;
+  serphApiKey?: string;
   mongodbUri?: string;
   mongodbDbName: string;
   mongodbCollection: string;
@@ -50,6 +52,7 @@ export function getServerEnv(): ServerEnv {
     OPENAI_BASE_URL: process.env.OPENAI_BASE_URL,
     OPENAI_MODEL: process.env.OPENAI_MODEL,
     OPENAI_TIMEOUT_MS: process.env.OPENAI_TIMEOUT_MS,
+    SERPH_API_KEY: process.env.SERPH_API_KEY,
     MONGODB_URI: process.env.MONGODB_URI,
     MONGODB_DB_NAME: process.env.MONGODB_DB_NAME,
     MONGODB_COLLECTION: process.env.MONGODB_COLLECTION,
@@ -67,6 +70,7 @@ export function getServerEnv(): ServerEnv {
     openaiBaseUrl: parsedEnv.OPENAI_BASE_URL ?? "https://api.openai.com/v1",
     openaiModel: parsedEnv.OPENAI_MODEL ?? "gpt-4o-mini",
     openaiTimeoutMs: parsedEnv.OPENAI_TIMEOUT_MS ?? 90000,
+    serphApiKey: parsedEnv.SERPH_API_KEY || undefined,
     mongodbUri: parsedEnv.MONGODB_URI || undefined,
     mongodbDbName: parsedEnv.MONGODB_DB_NAME || "validly",
     mongodbCollection: parsedEnv.MONGODB_COLLECTION || "ideas",

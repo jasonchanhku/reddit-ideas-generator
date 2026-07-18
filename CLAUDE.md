@@ -138,3 +138,4 @@ The OpenAI client is provider-agnostic. To switch from OpenAI to another provide
 - `MONGODB_URI` — opt-in MongoDB Atlas persistence; omit to skip storage
 - `MONGODB_COLLECTION` (default: `ideas`) — Atlas collection name
 - `MONGODB_DB_NAME` — MongoDB DB name
+- `SERPH_API_KEY` — SerpAPI key for Deep Research on `/research/[id]`; the "Perform Research" button is disabled when absent

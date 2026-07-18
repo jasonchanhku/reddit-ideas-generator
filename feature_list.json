@@ -55,7 +55,8 @@
       "subtasks": ["KAN-50", "KAN-51", "KAN-52", "KAN-53"],
       "status": "see-jira",
       "implementation_notes": "Add SERPH_API_KEY to lib/env.ts (optional, graceful degradation). Create lib/research.ts with searchWeb() via SERPH API. Add runResearchAnalysis() to lib/ai.ts. Create POST /api/ideas/[id]/research. Update /research/[id] with Perform Research button.",
-      "done_criteria": "Research button triggers web search + AI synthesis; results displayed and persisted; stage updates to 'researched'; button disabled when SERPH_API_KEY absent; npm run build passes"
+      "done_criteria": "Research button triggers web search + AI synthesis; results displayed and persisted; stage updates to 'researched'; button disabled when SERPH_API_KEY absent; npm run build passes",
+      "evidence": "commit caec19e on feature/KAN-4-implement (2026-07-18). SERPH_API_KEY (SerpAPI) added to lib/env.ts. lib/research.ts created: buildResearchQueries (4 targeted queries: TAM/CAGR, tools, trends, competitor pricing), searchWeb via serpapi.com, per-query failure tolerance. lib/ai.ts: runResearchAnalysis + researchResultsSchema (Zod) + RESEARCH_SYSTEM_PROMPT covering KAN-14's cited-market-facts requirements. POST /api/ideas/[id]/research created; GET /api/ideas/[id] returns research_enabled. /research/[id] UI: active button with spinner, Re-run Research state, results panel with competitor cards and numbered sources footer. Verified end-to-end against live MongoDB + SerpAPI: research run returned directional market sizing, 3 competitors, 4 cited sources; stage persisted as 'researched'. npm run build ✓, npm run lint ✓."
     },
     {
       "id": "KAN-5",
