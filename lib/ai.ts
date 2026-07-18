@@ -337,6 +337,121 @@ export async function runResearchAnalysis(
   return { ...parsed, researched_at: new Date().toISOString() };
 }
 
+const PRD_SYSTEM_PROMPT = `You are a senior product manager writing an exhaustive Product Requirements Document (PRD) for a SaaS idea.
+
+The PRD will be handed VERBATIM to AI coding and design agents (Claude Code, Claude Design) as their only specification. It must be super detailed and fully self-contained — no external references, no "see above", no placeholders. Assume the reader has zero context beyond this document.
+
+You are given the idea's data mined from Reddit plus deep market research results (market sizing, competitors, pricing, gaps, risks). Ground every section in that data — quote competitor names, pricing points, and market figures wherever relevant.
+
+REQUIRED STRUCTURE (Markdown, in this order):
+
+# <Product Name> — Product Requirements Document
+## 1. Executive Summary — the product in one paragraph, the wedge, and why now
+## 2. Problem Statement — the validated pain, who feels it, evidence from the source data
+## 3. Target Users & Personas — 2-4 concrete personas with goals, frustrations, willingness-to-pay signals
+## 4. Feature List
+### 4.1 MVP Features — each as a user story with numbered acceptance criteria, detailed enough to implement without follow-up questions
+### 4.2 Post-MVP Roadmap — later phases, briefly
+## 5. Success Metrics — activation, retention, and revenue metrics with concrete targets
+## 6. Technical Considerations — suggested stack, data model sketch (entities + key fields), API surface (endpoints with methods), third-party integrations
+## 7. Competitive Positioning — incumbents, their pricing, the exploitable gap, and how this product wins
+## 8. Go-to-Market Notes — beachhead audience, first channels, pricing strategy with tiers
+## 9. Risks & Mitigations
+
+Write in full sentences with specifics. Prefer depth over brevity — this document's quality directly determines the quality of the code and designs generated from it.
+
+OUTPUT: pure Markdown only. Do NOT wrap the document in code fences. Do NOT return JSON or commentary outside the document.`;
+
+function stripWrappingCodeFence(text: string): string {
+  const trimmed = text.trim();
+  const match = trimmed.match(/^```(?:markdown|md)?\s*\n([\s\S]*?)\n```$/);
+  return match ? match[1].trim() : trimmed;
+}
+
+export async function generatePRD(idea: SaasIdea): Promise<string> {
+  const env = getServerEnv();
+
+  const client = new OpenAI({
+    apiKey: env.openaiApiKey,
+    baseURL: env.openaiBaseUrl,
+    // High-effort reasoning + long output can far exceed the default request timeout
+    timeout: Math.max(env.openaiTimeoutMs, 240_000),
+  });
+
+  const { run_id: _runId, prd_content: _previousPrd, ...ideaForPrompt } = idea;
+  void _runId;
+  void _previousPrd;
+
+  console.log(`\n📝 [PRD AI] Generating PRD for "${idea.idea_name}" | Model: ${env.openaiModel} | reasoning_effort: high`);
+
+  // Streaming is required here: high-effort reasoning models think silently for
+  // minutes before the first output token, and idle non-streaming connections
+  // get terminated by intermediate gateways.
+  const baseParams: OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming = {
+    model: env.openaiModel,
+    max_tokens: 8000,
+    stream: true,
+    messages: [
+      { role: "system", content: PRD_SYSTEM_PROMPT },
+      { role: "user", content: JSON.stringify({ idea: ideaForPrompt }) },
+    ],
+  };
+
+  // Adapted from the DeepSeek reference: reasoning_effort="high" +
+  // extra_body={"thinking": {"type": "enabled"}}. The SDK passes the extra
+  // `thinking` key through at runtime; the cast is only for TypeScript.
+  const reasoningParams = {
+    ...baseParams,
+    reasoning_effort: "high",
+    thinking: { type: "enabled" },
+  } as OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming;
+
+  async function collectStream(
+    params: OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming,
+  ): Promise<{ content: string; finishReason: string | null }> {
+    const stream = await client.chat.completions.create(params);
+    let content = "";
+    let finishReason: string | null = null;
+    for await (const chunk of stream) {
+      const choice = chunk.choices[0];
+      if (choice?.delta?.content) content += choice.delta.content;
+      if (choice?.finish_reason) finishReason = choice.finish_reason;
+    }
+    return { content, finishReason };
+  }
+
+  const requestStart = Date.now();
+  let result: { content: string; finishReason: string | null };
+  try {
+    result = await collectStream(reasoningParams);
+  } catch (error) {
+    // Providers without reasoning support (e.g. OpenAI gpt-4o-mini) reject the
+    // extra params with a 400 — retry once without them.
+    if (error instanceof OpenAI.BadRequestError) {
+      console.warn(`   ⚠️  [PRD AI] Provider rejected reasoning params (${error.message}) — retrying without them`);
+      result = await collectStream(baseParams);
+    } else {
+      throw error;
+    }
+  }
+
+  console.log(`   ⏱️  [PRD AI] Response: ${Date.now() - requestStart}ms`);
+
+  if (result.finishReason === "length") {
+    console.warn(`   ⚠️  [PRD AI] Completion hit the max_tokens cap — PRD may be truncated`);
+  }
+
+  const prd = stripWrappingCodeFence(result.content);
+
+  if (!prd) {
+    throw new Error("AI returned an empty PRD.");
+  }
+
+  console.log(`   ✅ [PRD AI] Generated PRD: ${prd.length} chars`);
+
+  return prd;
+}
+
 function compactStructuredData(data: StructuredRedditData): StructuredRedditData {
   console.log(`\n📦 [COMPACT DATA] Preparing data for AI...`);
   console.log(`   Original posts: ${data.posts.length}`);

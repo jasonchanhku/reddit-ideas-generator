@@ -3,27 +3,12 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import type { FocusMode, SaasIdea } from "@/lib/types";
-
-const FOCUS_MODE_LABELS: Record<FocusMode, string> = {
-  "pain-points": "Pain Points",
-  "revenue-first": "Revenue-First",
-  "better-mousetrap": "Better Mousetrap",
-  "emerging-trends": "Emerging Trends",
-};
-
-const FOCUS_MODE_COLORS: Record<FocusMode, string> = {
-  "pain-points": "border-rose-200 bg-rose-50 text-rose-700",
-  "revenue-first": "border-emerald-200 bg-emerald-50 text-emerald-700",
-  "better-mousetrap": "border-sky-200 bg-sky-50 text-sky-700",
-  "emerging-trends": "border-violet-200 bg-violet-50 text-violet-700",
-};
-
-function scoreTone(score: number): string {
-  if (score >= 8) return "border-emerald-300 bg-emerald-50 text-emerald-700";
-  if (score >= 5) return "border-amber-300 bg-amber-50 text-amber-700";
-  return "border-rose-300 bg-rose-50 text-rose-700";
-}
+import {
+  FOCUS_MODE_COLORS,
+  FOCUS_MODE_LABELS,
+  scoreTone,
+} from "@/app/components/idea-detail";
+import type { SaasIdea } from "@/lib/types";
 
 function ResearchCard({
   idea,
@@ -66,6 +51,11 @@ function ResearchCard({
             {focusLabel && idea.focus_mode && (
               <span className={`rounded-full border px-2 py-0.5 font-mono text-[0.65rem] uppercase tracking-[0.18em] ${focusColor}`}>
                 {focusLabel}
+              </span>
+            )}
+            {idea.stage === "poc" && (
+              <span className="rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5 font-mono text-[0.65rem] uppercase tracking-[0.18em] text-indigo-700">
+                PoC
               </span>
             )}
           </div>

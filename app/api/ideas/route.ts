@@ -9,6 +9,7 @@ export async function GET(request: Request): Promise<NextResponse> {
   const env = getServerEnv();
   const { searchParams } = new URL(request.url);
   const isFavourite = searchParams.get("is_favourite");
+  const stage = searchParams.get("stage");
 
   if (!env.mongodbUri) {
     return NextResponse.json({ ideas: [] });
@@ -17,8 +18,9 @@ export async function GET(request: Request): Promise<NextResponse> {
   try {
     const db = await getDb(env.mongodbUri, env.mongodbDbName);
 
-    const matchFilter: Record<string, unknown> =
-      isFavourite === "true" ? { "ideas.is_favourite": true } : {};
+    const matchFilter: Record<string, unknown> = {};
+    if (isFavourite === "true") matchFilter["ideas.is_favourite"] = true;
+    if (stage) matchFilter["ideas.stage"] = stage;
 
     const ideas = await db
       .collection(env.mongodbCollection)

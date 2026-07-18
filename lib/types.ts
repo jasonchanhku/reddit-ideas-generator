@@ -67,6 +67,7 @@ export interface SaasIdea {
   stage?: string;
   run_id?: string;
   research_results?: ResearchResults;
+  prd_content?: string;
 }
 
 export interface AnalyzeIdeasResponse {
