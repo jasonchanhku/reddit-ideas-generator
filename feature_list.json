@@ -68,7 +68,8 @@
       "subtasks": ["KAN-54", "KAN-55", "KAN-56", "KAN-57", "KAN-58"],
       "status": "see-jira",
       "implementation_notes": "Create POST /api/ideas/[id]/move-to-poc (validates stage='researched', sets stage='poc'). Create app/poc/page.tsx grid. Create app/poc/[id]/page.tsx with PRD generation. Add generatePRD() in lib/ai.ts. POST /api/ideas/[id]/generate-prd. Browser download of <kebab-idea-name>-prd.md.",
-      "done_criteria": "Move to PoC only for researched ideas; /poc page shows poc-stage ideas; Generate PRD produces downloadable Markdown; npm run build passes"
+      "done_criteria": "Move to PoC only for researched ideas; /poc page shows poc-stage ideas; Generate PRD produces downloadable Markdown; npm run build passes",
+      "evidence": "Implemented on feature/KAN-5 (2026-07-18). POST /api/ideas/[id]/move-to-poc (409 unless stage='researched'); GET /api/ideas gained stage query param; app/poc/page.tsx card grid (PRD/Mockups status pills); app/poc/[id]/page.tsx detail view with Generate PRD, inline react-markdown rendering, Blob download <kebab>-prd.md, Re-generate PRD, disabled Generate Mockups placeholder (KAN-6); generatePRD() in lib/ai.ts uses reasoning_effort='high' + thinking extra body (adapted from KAN-18 DeepSeek reference) with streaming accumulation (non-streaming connections were terminated ~60s during silent reasoning) and 400-fallback for providers without reasoning support; shared detail components extracted to app/components/idea-detail.tsx; Research page shows PoC badge + View in PoC link. Verified E2E against live MongoDB + DeepSeek (deepseek-v4-flash): move-to-poc 200 then 409 on repeat; PRD generated in 73s, 24,336 chars, all 9 required sections, persisted and re-fetched from MongoDB. npm run build ✓ (16 routes), npm run lint ✓."
     },
     {
       "id": "KAN-6",

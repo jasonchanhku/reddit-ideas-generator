@@ -3,61 +3,61 @@
 ## Current Objective
 
 - **Goal:** Evolve Validly from a single-page Reddit idea scraper into a multi-stage SaaS validation pipeline (Discover → Research → PoC)
-- **Current status:** KAN-4 Done. Next epic: KAN-5 — PoC Page & PRD Generation
-- **Branch:** `feature/KAN-4-implement` — merge to main, then create `feature/KAN-5`
+- **Current status:** KAN-5 Done. Next epic: KAN-6 — UI Mockup Generation (final epic)
+- **Branch:** `feature/KAN-5` — merge to main, then create `feature/KAN-6`
 
 ## Completed This Session
 
-- [x] Fast-forwarded `feature/KAN-4-implement` onto origin/main (branch was created from stale local main missing the KAN-3 merge)
-- [x] KAN-4: SERPH_API_KEY (SerpAPI) in lib/env.ts, CLAUDE.md, env.local.template
-- [x] KAN-4: lib/research.ts — buildResearchQueries (4 targeted queries), searchWeb, runResearchSearches
-- [x] KAN-4: lib/ai.ts — runResearchAnalysis, researchResultsSchema, RESEARCH_SYSTEM_PROMPT
-- [x] KAN-4: POST /api/ideas/[id]/research — search → synthesis → persist + stage='researched'
-- [x] KAN-4: GET /api/ideas/[id] returns research_enabled
-- [x] KAN-4: /research/[id] — active Perform/Re-run Research button, results panel, sources footer
-- [x] Verified end-to-end against live SerpAPI + MongoDB (real research run persisted)
-- [x] feature_list.json evidence for KAN-4; npm run build ✓, npm run lint ✓
+- [x] Bugfix (merged to main): DeepSeek truncation — max_tokens 6000, parseJsonArray salvage, finish_reason warnings
+- [x] KAN-5: POST /api/ideas/[id]/move-to-poc (409 unless stage='researched')
+- [x] KAN-5: GET /api/ideas?stage= filter; /poc grid with PRD/Mockups status pills
+- [x] KAN-5: /poc/[id] detail — Generate PRD, inline Markdown render, Blob download, Re-generate
+- [x] KAN-5: generatePRD in lib/ai.ts — reasoning_effort='high' + thinking enabled (KAN-18 reference), STREAMING (non-streaming was terminated at ~60s during silent reasoning), 400-fallback for non-reasoning providers
+- [x] KAN-5: shared components extracted to app/components/idea-detail.tsx
+- [x] KAN-5: Research page PoC badge + View in PoC link
+- [x] Verified E2E against live MongoDB + DeepSeek (deepseek-v4-flash)
 
 ## Verification Evidence
 
 | Check | Command | Result |
 |-------|---------|--------|
 | Lint | `npm run lint` | ✓ 0 errors, 0 warnings |
-| Build | `npm run build` | ✓ All 13 routes compiled |
-| E2E | POST /api/ideas/:id/research on dev server | ✓ 200; market sizing + 3 competitors + 4 sources; stage persisted 'researched' |
+| Build | `npm run build` | ✓ All 16 routes compiled |
+| E2E move | POST /api/ideas/:id/move-to-poc | ✓ 200 → stage 'poc'; repeat → 409 |
+| E2E PRD | POST /api/ideas/:id/generate-prd | ✓ 200 in 73s; 24,336-char PRD, all 9 sections; persisted (fresh GET) |
 
-## Architecture Notes for KAN-5
+## Architecture Notes for KAN-6
 
-KAN-5 adds the PoC pipeline stage. Stories KAN-16–19, subtasks KAN-54–58.
+KAN-6 — UI Mockup Generation. Stories KAN-20, KAN-21; subtasks KAN-59, KAN-60, KAN-61. Re-confirm details in JIRA (user updates descriptions).
 
-KAN-5 needs (per feature_list.json — re-confirm details in JIRA, user may have updated):
-- `POST /api/ideas/[id]/move-to-poc` — validate `stage === 'researched'`, set `stage = 'poc'` (positional `$` operator, same pattern as research route)
-- `app/poc/page.tsx` — replace Coming Soon stub with grid of poc-stage ideas (reuse Research page pattern; `GET /api/ideas` may need a `stage` query param — currently only supports `is_favourite`)
-- `app/poc/[id]/page.tsx` — detail view with Generate PRD button
-- `generatePRD()` in lib/ai.ts — likely consumes idea + research_results
-- `POST /api/ideas/[id]/generate-prd` — returns Markdown; browser download as `<kebab-idea-name>-prd.md`
-- The disabled "Move to PoC" button already renders on /research/[id] when `stage === 'researched'` — wire it up
+Per feature_list.json:
+- Add `mockup_images?: string[]` to SaasIdea in lib/types.ts (KAN-59)
+- `POST /api/ideas/[id]/generate-mockups` using OpenAI DALL-E; persist image URLs to MongoDB
+- Gallery on /poc/[id] with per-image download and Download All ZIP
+- The disabled "Generate Mockups" button + placeholder already render on /poc/[id] — wire them up
+- The /poc grid "Mockups —" pill is hardcoded to the not-generated state — derive from mockup_images
+- **Provider risk:** OPENAI_* currently points at DeepSeek, which has no image API. Likely need a dedicated env var (e.g. IMAGE_API_KEY / IMAGE_BASE_URL) or reuse OPENAI_* only when pointed at OpenAI — ask the user
+- DALL-E URLs expire (~1h) — consider storing base64 or re-hosting; raise with user before implementing
 
 ## Blockers / Risks
 
-- SerpAPI free tier: 100 searches/month, ~4 per research run
+- PRD generation ~1–2 min (high reasoning); generate-prd route maxDuration=300
 - `MONGODB_URI` required for all stage-pipeline features
-- JIRA MCP HTTP+SSE transport deprecated after June 30 2026; may need migration to Streamable HTTP endpoint
+- JIRA MCP HTTP+SSE transport deprecated after June 30 2026; server still relaying migration notice → Streamable HTTP endpoint https://mcp.atlassian.com/v1/mcp
 
 ## Next Session Startup
 
 1. Read `CLAUDE.md` for project overview and architecture.
-2. Read `feature_list.json` for KAN-5 epic structure, dependencies, and done criteria.
-3. **Query JIRA** (`project = KAN ORDER BY created ASC`) via Atlassian MCP — confirm KAN-5 is the first non-Done epic and fetch latest story/subtask descriptions (user updates them).
+2. Read `feature_list.json` for KAN-6 epic structure and done criteria.
+3. **Query JIRA** (`project = KAN ORDER BY created ASC`) via Atlassian MCP — confirm KAN-6 is the remaining non-Done epic and fetch latest story/subtask descriptions.
 4. Read `progress.md` for current state and key files.
 5. Run `./init.sh` to confirm clean baseline before editing.
-6. Implement KAN-5 only. Do not begin KAN-6 work.
+6. Implement KAN-6 only — it is the final epic in the roadmap.
 
 ## Recommended Next Step
 
-**Merge `feature/KAN-4-implement` to `main`, then start `feature/KAN-5`.**
+**Merge `feature/KAN-5` to `main`, then start `feature/KAN-6`.**
 
-First task in KAN-5:
-- Fetch KAN-5 stories (KAN-16–19) and subtasks (KAN-54–58) from JIRA for latest acceptance criteria
-- Create `POST /api/ideas/[id]/move-to-poc` and wire the existing Move to PoC button on /research/[id]
-- Extend `GET /api/ideas` with a `stage` filter for the /poc grid
+First task in KAN-6:
+- Fetch KAN-6 stories (KAN-20, KAN-21) and subtasks (KAN-59–61) from JIRA for latest acceptance criteria
+- Resolve the image-provider question (DeepSeek has no image API) with the user before writing code
