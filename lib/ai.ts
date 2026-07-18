@@ -244,7 +244,7 @@ OUTPUT STRICT JSON:
 
 Do NOT return text outside JSON.`;
 
-function parseJsonArray(raw: string): SaasIdea[] {
+export function parseJsonArray(raw: string): SaasIdea[] {
   const withoutCodeFence = raw.replace(/```json|```/gi, "").trim();
   const start = withoutCodeFence.indexOf("[");
   const end = withoutCodeFence.lastIndexOf("]");
@@ -255,11 +255,12 @@ function parseJsonArray(raw: string): SaasIdea[] {
 
   const candidate = withoutCodeFence.slice(start, end + 1);
 
+  let parsed: unknown;
   try {
-    return ideaArraySchema.parse(JSON.parse(candidate));
+    parsed = JSON.parse(candidate);
   } catch {
     try {
-      return ideaArraySchema.parse(JSON.parse(jsonrepair(candidate)));
+      parsed = JSON.parse(jsonrepair(candidate));
     } catch (repairError) {
       throw new Error(
         repairError instanceof Error
@@ -268,6 +269,30 @@ function parseJsonArray(raw: string): SaasIdea[] {
       );
     }
   }
+
+  const full = ideaArraySchema.safeParse(parsed);
+  if (full.success) {
+    return full.data;
+  }
+
+  // A completion truncated by max_tokens leaves a half-written final object that
+  // jsonrepair closes early; keep the ideas that came through complete.
+  if (Array.isArray(parsed)) {
+    const salvaged = parsed
+      .map((item) => ideaSchema.safeParse(item))
+      .filter((result) => result.success)
+      .map((result) => result.data)
+      .slice(0, 10);
+
+    if (salvaged.length > 0) {
+      console.warn(
+        `   ⚠️  Dropped ${parsed.length - salvaged.length} incomplete idea(s) from AI response (likely truncated output)`,
+      );
+      return salvaged;
+    }
+  }
+
+  throw new Error(`Failed to parse AI JSON: ${full.error.message}`);
 }
 
 function parseResearchObject(raw: string): z.infer<typeof researchResultsSchema> {
@@ -320,7 +345,7 @@ export async function runResearchAnalysis(
   const response = await client.chat.completions.create({
     model: env.openaiModel,
     temperature: 0.2,
-    max_tokens: 3000,
+    max_tokens: 6000,
     messages: [
       { role: "system", content: RESEARCH_SYSTEM_PROMPT },
       { role: "user", content: JSON.stringify({ idea: ideaForPrompt, web_searches: searches }) },
@@ -328,6 +353,10 @@ export async function runResearchAnalysis(
   });
 
   console.log(`   ⏱️  [RESEARCH AI] Response: ${Date.now() - requestStart}ms`);
+
+  if (response.choices[0]?.finish_reason === "length") {
+    console.warn(`   ⚠️  [RESEARCH AI] Completion hit the max_tokens cap — output may be truncated`);
+  }
 
   const rawContent = response.choices[0]?.message?.content ?? "";
   const parsed = parseResearchObject(rawContent);
@@ -493,7 +522,7 @@ async function runSingleAnalysis(
   const response = await client.chat.completions.create({
     model: env.openaiModel,
     temperature: 0.2,
-    max_tokens: 2200,
+    max_tokens: 6000,
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: JSON.stringify(compactData) },
@@ -502,6 +531,10 @@ async function runSingleAnalysis(
 
   const elapsed = Date.now() - requestStart;
   console.log(`   ⏱️  [${focusMode}] Response: ${elapsed}ms`);
+
+  if (response.choices[0]?.finish_reason === "length") {
+    console.warn(`   ⚠️  [${focusMode}] Completion hit the max_tokens cap — output may be truncated`);
+  }
 
   const rawContent = response.choices[0]?.message?.content ?? "";
   const ideas = parseJsonArray(rawContent);
